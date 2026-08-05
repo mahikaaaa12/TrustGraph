@@ -8,7 +8,7 @@ export default function DashboardLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className="flex h-screen bg-[#0B1220] text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#F8F7F4] text-[#2B2B2B] overflow-hidden font-sans">
       {/* Collapsible Sidebar */}
       <Sidebar isCollapsed={isCollapsed} toggleSidebar={() => setIsCollapsed(!isCollapsed)} />
 
@@ -18,7 +18,7 @@ export default function DashboardLayout() {
         <Navbar />
 
         {/* Page Content Viewport */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-[#0B1220]">
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-[#F8F7F4]">
           <Outlet />
         </main>
       </div>

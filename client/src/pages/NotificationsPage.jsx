@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaBell, FaExclamationTriangle, FaCheckCircle, FaInfoCircle } from 'react-icons/fa';
+import { AlertCircle, CheckCircle, Info } from 'lucide-react';
 
 export default function NotificationsPage() {
   const notifications = [
@@ -29,8 +29,8 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Security Notifications & System Alerts</h1>
-        <p className="text-sm text-slate-400 mt-1">
+        <h1 className="text-2xl font-bold text-[#2B2B2B] tracking-tight">Security Notifications & System Alerts</h1>
+        <p className="text-xs text-[#6B7280] mt-1">
           Operational alert feed capturing real-time security triggers, threat warnings, and cluster status updates.
         </p>
       </div>
@@ -39,32 +39,32 @@ export default function NotificationsPage() {
         {notifications.map((n) => (
           <div
             key={n.id}
-            className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex items-start space-x-4"
+            className="p-5 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs flex items-start space-x-4"
           >
             <div
-              className={`p-3 rounded-xl ${
+              className={`p-2.5 rounded-xl ${
                 n.type === 'critical'
-                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                  ? 'bg-[#D96C6C]/15 text-[#D96C6C]'
                   : n.type === 'success'
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                  : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                  ? 'bg-[#5B8C5A]/15 text-[#5B8C5A]'
+                  : 'bg-[#7F8F73]/15 text-[#7F8F73]'
               }`}
             >
               {n.type === 'critical' ? (
-                <FaExclamationTriangle className="text-lg" />
+                <AlertCircle className="w-5 h-5 stroke-[1.75]" />
               ) : n.type === 'success' ? (
-                <FaCheckCircle className="text-lg" />
+                <CheckCircle className="w-5 h-5 stroke-[1.75]" />
               ) : (
-                <FaInfoCircle className="text-lg" />
+                <Info className="w-5 h-5 stroke-[1.75]" />
               )}
             </div>
 
             <div className="flex-1 space-y-1">
               <div className="flex justify-between items-center">
-                <h3 className="text-sm font-bold text-white">{n.title}</h3>
-                <span className="text-[11px] text-slate-500 font-mono">{n.time}</span>
+                <h3 className="text-sm font-bold text-[#2B2B2B]">{n.title}</h3>
+                <span className="text-[11px] text-[#9CA3AF] font-mono">{n.time}</span>
               </div>
-              <p className="text-xs text-slate-400">{n.message}</p>
+              <p className="text-xs text-[#6B7280]">{n.message}</p>
             </div>
           </div>
         ))}

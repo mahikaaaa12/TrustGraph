@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import api from '../services/api';
 import { useErrorLogs } from '../context/ErrorLogContext';
 import { motion } from 'framer-motion';
-import { FaCloudUploadAlt, FaImage, FaSearch, FaCamera, FaRobot, FaExclamationTriangle } from 'react-icons/fa';
+import { Image as ImageIcon, Search, Camera, Cpu, AlertTriangle } from 'lucide-react';
 
 export default function ImagePage() {
   const { showToast } = useErrorLogs();
@@ -38,7 +38,6 @@ export default function ImagePage() {
       });
 
       const fileId = uploadRes.data?.data?.file?._id;
-
       const analyzeRes = await api.post('/images/analyze', { fileId });
 
       setAnalysisResult(analyzeRes.data?.data);
@@ -53,20 +52,18 @@ export default function ImagePage() {
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">AI Image Forensics & ELA Heatmap Analyzer</h1>
-        <p className="text-sm text-slate-400 mt-1">
+        <h1 className="text-2xl font-bold text-[#2B2B2B] tracking-tight">AI Image Forensics & ELA Heatmap Analyzer</h1>
+        <p className="text-xs text-[#6B7280] mt-1">
           Inspect EXIF metadata, detect Error Level Analysis (ELA) pixel compression anomalies, Photoshop manipulation traces, and synthetic AI image probability.
         </p>
       </div>
 
-      {/* Upload & Preview Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Upload Form */}
-        <div className="p-8 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-6">
+        <div className="p-8 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs space-y-6">
           <form onSubmit={handleAnalyze} className="space-y-6">
             <div
               onDragOver={(e) => e.preventDefault()}
-              className="border-2 border-dashed border-slate-800 hover:border-indigo-500/80 rounded-2xl p-8 text-center transition-all bg-slate-950/50 cursor-pointer group flex flex-col items-center justify-center space-y-3"
+              className="border-2 border-dashed border-[#E5E7EB] hover:border-[#8E9A7D] rounded-2xl p-10 text-center transition-all bg-[#F8F7F4] cursor-pointer group flex flex-col items-center justify-center space-y-3"
             >
               <input
                 type="file"
@@ -76,14 +73,14 @@ export default function ImagePage() {
                 id="imageFileInput"
               />
               <label htmlFor="imageFileInput" className="cursor-pointer space-y-3 flex flex-col items-center">
-                <div className="w-16 h-16 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                  <FaImage />
+                <div className="w-14 h-14 rounded-2xl bg-[#8E9A7D]/15 text-[#7F8F73] flex items-center justify-center text-2xl group-hover:scale-105 transition-transform">
+                  <ImageIcon className="w-7 h-7 stroke-[1.75]" />
                 </div>
                 <div>
-                  <span className="text-sm font-semibold text-white group-hover:text-indigo-400 transition-colors">
+                  <span className="text-sm font-semibold text-[#2B2B2B] group-hover:text-[#7F8F73] transition-colors">
                     {selectedFile ? selectedFile.name : 'Upload image file for forensics'}
                   </span>
-                  <p className="text-xs text-slate-500 mt-1">Supported Formats: PNG, JPEG, WebP</p>
+                  <p className="text-xs text-[#9CA3AF] mt-1">Supported Formats: PNG, JPEG, WebP</p>
                 </div>
               </label>
             </div>
@@ -91,90 +88,86 @@ export default function ImagePage() {
             <button
               type="submit"
               disabled={loading || !selectedFile}
-              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/20"
+              className="w-full py-3.5 bg-[#8E9A7D] hover:bg-[#7F8F73] disabled:bg-[#E5E7EB] disabled:text-[#9CA3AF] text-white font-semibold rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 shadow-xs"
             >
-              <FaSearch />
+              <Search className="w-4 h-4 stroke-[1.75]" />
               <span>{loading ? 'Running ELA & EXIF Scanners...' : 'Analyze Image Integrity'}</span>
             </button>
           </form>
         </div>
 
-        {/* Thumbnail Preview Panel */}
-        <div className="p-8 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl flex flex-col items-center justify-center">
+        <div className="p-8 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs flex flex-col items-center justify-center">
           {previewUrl ? (
             <div className="space-y-4 text-center">
               <img
                 src={previewUrl}
                 alt="Upload Preview"
-                className="max-h-64 rounded-xl border border-slate-800 object-contain mx-auto shadow-2xl"
+                className="max-h-64 rounded-xl border border-[#E5E7EB] object-contain mx-auto shadow-sm"
               />
-              <p className="text-xs text-slate-400 font-mono">{selectedFile?.name}</p>
+              <p className="text-xs text-[#6B7280] font-mono">{selectedFile?.name}</p>
             </div>
           ) : (
-            <div className="text-center text-slate-500 space-y-2">
-              <FaCamera className="text-4xl mx-auto text-slate-700" />
+            <div className="text-center text-[#9CA3AF] space-y-2">
+              <Camera className="w-10 h-10 mx-auto text-[#D1D5DB]" />
               <p className="text-xs">No image selected for preview</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Analysis Results View */}
       {analysisResult && (
         <div className="space-y-8">
-          {/* Metrics Header */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl">
-              <span className="text-xs text-slate-400">Image Trust Score</span>
-              <p className="text-2xl font-black text-emerald-400 mt-1">
+            <div className="p-5 bg-white border border-[#E5E7EB] rounded-2xl shadow-xs">
+              <span className="text-xs text-[#6B7280]">Image Trust Score</span>
+              <p className="text-2xl font-black text-[#5B8C5A] mt-1">
                 {analysisResult.imageTrustScore} / 100
               </p>
             </div>
-            <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl">
-              <span className="text-xs text-slate-400">AI Generation Probability</span>
-              <p className="text-2xl font-black text-indigo-400 mt-1 flex items-center space-x-1">
-                <FaRobot />
+            <div className="p-5 bg-white border border-[#E5E7EB] rounded-2xl shadow-xs">
+              <span className="text-xs text-[#6B7280]">AI Generation Probability</span>
+              <p className="text-2xl font-black text-[#7F8F73] mt-1 flex items-center space-x-1">
+                <Cpu className="w-5 h-5 stroke-[1.75]" />
                 <span>{((analysisResult.aiGenerationProbability || 0.1) * 100).toFixed(0)}%</span>
               </p>
             </div>
-            <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl">
-              <span className="text-xs text-slate-400">ELA Error Variance</span>
-              <p className="text-xl font-bold text-amber-400 mt-1">
+            <div className="p-5 bg-white border border-[#E5E7EB] rounded-2xl shadow-xs">
+              <span className="text-xs text-[#6B7280]">ELA Error Variance</span>
+              <p className="text-xl font-bold text-[#D9A441] mt-1">
                 {analysisResult.elaAnalysis?.errorRate || '14.2'}%
               </p>
             </div>
-            <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl">
-              <span className="text-xs text-slate-400">Risk Profile</span>
-              <p className="text-sm font-bold text-rose-400 capitalize mt-1">
+            <div className="p-5 bg-white border border-[#E5E7EB] rounded-2xl shadow-xs">
+              <span className="text-xs text-[#6B7280]">Risk Profile</span>
+              <p className="text-xs font-bold text-[#D96C6C] uppercase mt-1">
                 {analysisResult.riskCategory?.toUpperCase()} RISK
               </p>
             </div>
           </div>
 
-          {/* ELA Heatmap & EXIF Telemetry */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
-              <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-3">
+            <div className="p-6 bg-white border border-[#E5E7EB] rounded-2xl space-y-4 shadow-xs">
+              <h3 className="text-sm font-bold text-[#2B2B2B] border-b border-[#E5E7EB] pb-3">
                 Error Level Analysis (ELA) Heatmap Output
               </h3>
               {analysisResult.elaAnalysis?.elaHeatmapUrl ? (
                 <img
                   src={`http://localhost:5000${analysisResult.elaAnalysis.elaHeatmapUrl}`}
                   alt="ELA Heatmap"
-                  className="w-full rounded-xl border border-slate-800"
+                  className="w-full rounded-xl border border-[#E5E7EB]"
                 />
               ) : (
-                <div className="p-4 bg-slate-950 rounded-xl text-xs text-slate-400">
+                <div className="p-4 bg-[#F8F7F4] rounded-xl text-xs text-[#6B7280]">
                   {analysisResult.elaAnalysis?.assessment || 'ELA differential heatmap generated cleanly.'}
                 </div>
               )}
             </div>
 
-            <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
-              <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-3">
+            <div className="p-6 bg-white border border-[#E5E7EB] rounded-2xl space-y-4 shadow-xs">
+              <h3 className="text-sm font-bold text-[#2B2B2B] border-b border-[#E5E7EB] pb-3">
                 Extracted EXIF Camera & Hardware Metadata
               </h3>
-              <pre className="p-4 bg-slate-950 rounded-xl text-xs font-mono text-indigo-300 border border-slate-800 overflow-x-auto">
+              <pre className="p-4 bg-[#F8F7F4] rounded-xl text-xs font-mono text-[#7F8F73] border border-[#E5E7EB] overflow-x-auto">
                 {JSON.stringify(analysisResult.exifData, null, 2)}
               </pre>
             </div>

@@ -1,60 +1,90 @@
 @import "tailwindcss";
 
-:root {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  color-scheme: dark;
+@layer base {
+  :root {
+    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color-scheme: light;
+    background-color: #F8F7F4;
+    color: #2B2B2B;
+  }
+
+  body {
+    margin: 0;
+    background-color: #F8F7F4;
+    color: #2B2B2B;
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
 }
 
-body {
-  margin: 0;
-  background-color: #0B1220;
-  color: #F8FAFC;
-  min-height: 100vh;
-  overflow-x: hidden;
+/* Natural Neutral Custom Utilities */
+.bg-neutral-base {
+  background-color: #F8F7F4;
 }
 
-/* Custom Glassmorphism & Shadow Utilities */
-.glass-panel {
-  background: rgba(17, 24, 39, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.bg-neutral-secondary {
+  background-color: #F3F2EF;
 }
 
-.glass-card {
-  background: linear-gradient(135deg, rgba(31, 41, 55, 0.6) 0%, rgba(17, 24, 39, 0.8) 100%);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+.bg-sage {
+  background-color: #8E9A7D;
 }
 
-.glow-blue {
-  box-shadow: 0 0 20px rgba(37, 99, 235, 0.25);
+.bg-sage-dark {
+  background-color: #7F8F73;
 }
 
-.glow-emerald {
-  box-shadow: 0 0 20px rgba(34, 197, 94, 0.25);
+.text-sage {
+  color: #7F8F73;
 }
 
-.glow-rose {
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
+.text-primary-dark {
+  color: #2B2B2B;
 }
 
-/* Custom Scrollbars */
+.text-secondary-gray {
+  color: #6B7280;
+}
+
+.border-neutral-light {
+  border-color: #E5E7EB;
+}
+
+/* Natural Neutral Card Elevation */
+.natural-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px -2px rgba(43, 43, 43, 0.03), 0 2px 6px -1px rgba(43, 43, 43, 0.02);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.natural-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -4px rgba(43, 43, 43, 0.06), 0 4px 10px -2px rgba(43, 43, 43, 0.03);
+  border-color: #D1D5DB;
+}
+
+.natural-pill {
+  border-radius: 9999px;
+}
+
+/* Soft Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0B1220;
+  background: #F8F7F4;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1F2937;
+  background: #D1D5DB;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #374151;
+  background: #9CA3AF;
 }

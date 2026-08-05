@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useErrorLogs } from '../context/ErrorLogContext';
-import { FaBug, FaTrashAlt, FaExclamationTriangle, FaNetworkWired } from 'react-icons/fa';
+import { Trash2, AlertTriangle, Bug } from 'lucide-react';
 
 export default function ErrorLogsPage() {
   const { errorLogs, clearErrorLogs } = useErrorLogs();
@@ -18,8 +18,8 @@ export default function ErrorLogsPage() {
     <div className="space-y-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Error Telemetry & Log Console</h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <h1 className="text-2xl font-bold text-[#2B2B2B] tracking-tight">Error Telemetry & Log Console</h1>
+          <p className="text-xs text-[#6B7280] mt-1">
             Real-time interceptor capture for Network Errors, 4xx Validation Failures, and 5xx API Exceptions.
           </p>
         </div>
@@ -27,24 +27,24 @@ export default function ErrorLogsPage() {
         {errorLogs.length > 0 && (
           <button
             onClick={clearErrorLogs}
-            className="px-4 py-2 bg-rose-600/20 text-rose-400 border border-rose-500/30 hover:bg-rose-600/30 rounded-xl text-xs font-semibold transition-colors flex items-center space-x-2"
+            className="px-4 py-2.5 bg-[#D96C6C]/10 text-[#D96C6C] border border-[#D96C6C]/20 hover:bg-[#D96C6C]/20 rounded-xl text-xs font-semibold transition-colors flex items-center space-x-2"
           >
-            <FaTrashAlt />
+            <Trash2 className="w-4 h-4 stroke-[1.75]" />
             <span>Clear Log Console</span>
           </button>
         )}
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex space-x-2 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 w-fit text-xs font-semibold">
+      <div className="flex flex-wrap gap-2 text-xs font-semibold">
         {['ALL', 'NETWORK', 'API', 'VALIDATION'].map((type) => (
           <button
             key={type}
             onClick={() => setFilterType(type)}
-            className={`px-4 py-2 rounded-xl transition-all ${
+            className={`px-4 py-2.5 rounded-xl border transition-colors ${
               filterType === type
-                ? 'bg-blue-600 text-white shadow'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#8E9A7D] text-white border-[#8E9A7D] shadow-xs'
+                : 'bg-white text-[#6B7280] hover:text-[#2B2B2B] border-[#E5E7EB]'
             }`}
           >
             {type} ERRORS
@@ -58,30 +58,30 @@ export default function ErrorLogsPage() {
           filteredLogs.map((log) => (
             <div
               key={log.id}
-              className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 shadow-xl"
+              className="p-6 rounded-2xl bg-white border border-[#E5E7EB] space-y-3 shadow-xs"
             >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-3">
                 <div className="flex items-center space-x-3">
-                  <span className="px-2.5 py-1 bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded text-xs font-mono font-bold">
+                  <span className="px-2.5 py-1 bg-[#D96C6C]/15 text-[#D96C6C] border border-[#D96C6C]/20 rounded text-xs font-mono font-bold">
                     {log.status}
                   </span>
-                  <span className="font-mono text-xs text-white font-bold">{log.method}</span>
-                  <code className="text-xs text-slate-300 font-mono">{log.url}</code>
+                  <span className="font-mono text-xs text-[#2B2B2B] font-bold">{log.method}</span>
+                  <code className="text-xs text-[#6B7280] font-mono">{log.url}</code>
                 </div>
-                <span className="text-[11px] text-slate-500 font-mono">{log.timestamp}</span>
+                <span className="text-[11px] text-[#9CA3AF] font-mono">{log.timestamp}</span>
               </div>
 
-              <p className="text-xs text-rose-300 font-medium">{log.message}</p>
+              <p className="text-xs text-[#D96C6C] font-semibold">{log.message}</p>
 
               {log.data && (
-                <pre className="p-3 bg-slate-950 rounded-xl text-[11px] font-mono text-slate-400 border border-slate-800 overflow-x-auto max-h-40">
+                <pre className="p-3 bg-[#F8F7F4] rounded-xl text-[11px] font-mono text-[#7F8F73] border border-[#E5E7EB] overflow-x-auto max-h-40">
                   {JSON.stringify(log.data, null, 2)}
                 </pre>
               )}
             </div>
           ))
         ) : (
-          <div className="p-12 bg-slate-900 border border-slate-800 rounded-2xl text-center text-slate-500 text-xs italic">
+          <div className="p-12 bg-white border border-[#E5E7EB] rounded-2xl text-center text-[#9CA3AF] text-xs italic shadow-xs">
             No error logs recorded matching current filter criteria.
           </div>
         )}

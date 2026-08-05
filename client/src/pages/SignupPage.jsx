@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useErrorLogs } from '../context/ErrorLogContext';
-import { FaShieldAlt, FaUser, FaEnvelope, FaLock, FaArrowRight, FaCheckCircle } from 'react-icons/fa';
+import { Shield, User, Mail, Lock, ArrowRight, CheckCircle } from 'lucide-react';
 
 export default function SignupPage() {
   const { login } = useAuth();
@@ -21,7 +21,6 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  // Compute password strength (0 to 100)
   const getPasswordStrength = (pass) => {
     let score = 0;
     if (pass.length > 6) score += 25;
@@ -65,85 +64,83 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1220] flex text-slate-100 font-sans">
-      {/* Left Column: Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-slate-950 p-16 flex-col justify-between border-r border-slate-800/80 relative overflow-hidden">
-        <div className="absolute top-1/3 left-1/3 w-[400px] h-[400px] bg-indigo-600/15 rounded-full blur-[120px] pointer-events-none" />
-
+    <div className="min-h-screen bg-[#F8F7F4] flex text-[#2B2B2B] font-sans">
+      {/* Left Column */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[#F3F2EF] p-16 flex-col justify-between border-r border-[#E5E7EB] relative overflow-hidden">
         <NavLink to="/" className="flex items-center space-x-3 group relative z-10">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/30">
-            <FaShieldAlt className="text-xl" />
+          <div className="w-9 h-9 rounded-xl bg-[#8E9A7D] flex items-center justify-center text-white shadow-xs">
+            <Shield className="w-5 h-5 stroke-[1.75]" />
           </div>
-          <span className="text-2xl font-black text-white tracking-wide">
-            Trust<span className="text-blue-500">Graph</span>
+          <span className="text-xl font-bold text-[#2B2B2B] tracking-tight">
+            Trust<span className="text-[#8E9A7D]">Graph</span>
           </span>
         </NavLink>
 
         <div className="space-y-6 relative z-10 max-w-lg">
-          <h1 className="text-4xl font-extrabold text-white leading-tight">
+          <h1 className="text-4xl font-extrabold text-[#2B2B2B] leading-tight">
             Join Enterprise Security Teams Worldwide
           </h1>
-          <div className="space-y-3 text-xs text-slate-400">
+          <div className="space-y-3 text-xs text-[#6B7280]">
             <div className="flex items-center space-x-3">
-              <FaCheckCircle className="text-emerald-400 text-base" />
+              <CheckCircle className="text-[#5B8C5A] w-4 h-4 stroke-[1.75]" />
               <span>Multi-modal AI evaluation across PDF, DOCX, and image files</span>
             </div>
             <div className="flex items-center space-x-3">
-              <FaCheckCircle className="text-emerald-400 text-base" />
+              <CheckCircle className="text-[#5B8C5A] w-4 h-4 stroke-[1.75]" />
               <span>Real-time SSL certificate and WHOIS threat blacklists</span>
             </div>
             <div className="flex items-center space-x-3">
-              <FaCheckCircle className="text-emerald-400 text-base" />
+              <CheckCircle className="text-[#5B8C5A] w-4 h-4 stroke-[1.75]" />
               <span>Executive compliance report exports with SOC2 metrics</span>
             </div>
           </div>
         </div>
 
-        <div className="text-xs text-slate-600 relative z-10">
+        <div className="text-xs text-[#9CA3AF] relative z-10">
           © 2026 TrustGraph AI Inc. All rights reserved.
         </div>
       </div>
 
-      {/* Right Column: Signup Form */}
+      {/* Right Column */}
       <div className="w-full lg:w-1/2 p-8 sm:p-16 flex items-center justify-center relative">
-        <div className="w-full max-w-md space-y-6">
+        <div className="w-full max-w-md space-y-6 bg-white p-8 sm:p-10 rounded-3xl border border-[#E5E7EB] shadow-xs">
           <div>
-            <h2 className="text-3xl font-extrabold text-white tracking-tight">Create Account</h2>
-            <p className="text-xs text-slate-400 mt-2">Get started with AI-powered digital trust evaluation.</p>
+            <h2 className="text-2xl font-bold text-[#2B2B2B] tracking-tight">Create Account</h2>
+            <p className="text-xs text-[#6B7280] mt-1.5">Get started with AI-powered digital trust evaluation.</p>
           </div>
 
           {errorMsg && (
-            <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300">
+            <div className="p-3.5 bg-[#D96C6C]/10 border border-[#D96C6C]/30 rounded-xl text-xs text-[#D96C6C]">
               {errorMsg}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-xs font-semibold text-slate-400">Full Name</label>
+              <label className="text-xs font-semibold text-[#6B7280]">Full Name</label>
               <div className="relative mt-1">
-                <FaUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] w-4 h-4 stroke-[1.5]" />
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Sarah Connor"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#F8F7F4] border border-[#E5E7EB] rounded-xl text-xs text-[#2B2B2B] focus:outline-none focus:border-[#8E9A7D]"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-400">Corporate Email</label>
+              <label className="text-xs font-semibold text-[#6B7280]">Corporate Email</label>
               <div className="relative mt-1">
-                <FaEnvelope className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] w-4 h-4 stroke-[1.5]" />
                 <input
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   placeholder="analyst@enterprise.com"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#F8F7F4] border border-[#E5E7EB] rounded-xl text-xs text-[#2B2B2B] focus:outline-none focus:border-[#8E9A7D]"
                   required
                 />
               </div>
@@ -151,47 +148,46 @@ export default function SignupPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-slate-400">Password</label>
+                <label className="text-xs font-semibold text-[#6B7280]">Password</label>
                 <div className="relative mt-1">
-                  <FaLock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] w-4 h-4 stroke-[1.5]" />
                   <input
                     type="password"
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#F8F7F4] border border-[#E5E7EB] rounded-xl text-xs text-[#2B2B2B] focus:outline-none focus:border-[#8E9A7D]"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-400">Confirm Password</label>
+                <label className="text-xs font-semibold text-[#6B7280]">Confirm Password</label>
                 <div className="relative mt-1">
-                  <FaLock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] w-4 h-4 stroke-[1.5]" />
                   <input
                     type="password"
                     value={form.confirmPassword}
                     onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#F8F7F4] border border-[#E5E7EB] rounded-xl text-xs text-[#2B2B2B] focus:outline-none focus:border-[#8E9A7D]"
                     required
                   />
                 </div>
               </div>
             </div>
 
-            {/* Password Strength Meter */}
             {form.password && (
               <div className="space-y-1 pt-1">
-                <div className="flex justify-between text-[10px] font-mono text-slate-400">
+                <div className="flex justify-between text-[10px] font-mono text-[#6B7280]">
                   <span>Password Strength</span>
                   <span className="font-bold">{strength}%</span>
                 </div>
-                <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full bg-[#F3F2EF] rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all ${
-                      strength < 50 ? 'bg-rose-500' : strength < 100 ? 'bg-amber-500' : 'bg-emerald-500'
+                      strength < 50 ? 'bg-[#D96C6C]' : strength < 100 ? 'bg-[#D9A441]' : 'bg-[#5B8C5A]'
                     }`}
                     style={{ width: `${strength}%` }}
                   />
@@ -200,13 +196,13 @@ export default function SignupPage() {
             )}
 
             <div>
-              <label className="text-xs font-semibold text-slate-400">Account Role</label>
+              <label className="text-xs font-semibold text-[#6B7280]">Account Role</label>
               <select
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
-                className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                className="w-full mt-1 bg-[#F8F7F4] border border-[#E5E7EB] rounded-xl px-3.5 py-2.5 text-xs text-[#2B2B2B] focus:outline-none focus:border-[#8E9A7D]"
               >
-                <option value="analyst font-mono">Security Analyst</option>
+                <option value="analyst">Security Analyst</option>
                 <option value="user">Enterprise User</option>
                 <option value="admin">System Administrator</option>
               </select>
@@ -215,16 +211,16 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-blue-600/25 flex items-center justify-center space-x-2"
+              className="w-full py-3.5 bg-[#8E9A7D] hover:bg-[#7F8F73] disabled:bg-[#E5E7EB] text-white font-semibold rounded-xl text-xs transition-colors shadow-xs flex items-center justify-center space-x-2"
             >
               <span>{loading ? 'Creating Account...' : 'Create Account'}</span>
-              <FaArrowRight />
+              <ArrowRight className="w-4 h-4 stroke-[2]" />
             </button>
           </form>
 
-          <p className="text-xs text-center text-slate-400">
+          <p className="text-xs text-center text-[#6B7280] pt-2 border-t border-[#E5E7EB]">
             Already have an account?{' '}
-            <NavLink to="/login" className="text-blue-400 font-bold hover:underline">
+            <NavLink to="/login" className="text-[#7F8F73] font-bold hover:underline">
               Sign In
             </NavLink>
           </p>

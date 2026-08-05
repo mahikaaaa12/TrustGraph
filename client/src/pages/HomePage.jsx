@@ -2,17 +2,17 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { motion } from 'framer-motion';
 import {
-  FaShieldAlt,
-  FaFileAlt,
-  FaExclamationTriangle,
-  FaChartLine,
-  FaCheckCircle,
-  FaGlobe,
-  FaImage,
-  FaFont,
-  FaArrowUp,
-  FaArrowDown,
-} from 'react-icons/fa';
+  TrendingUp,
+  Shield,
+  AlertTriangle,
+  FileText,
+  CheckCircle,
+  Globe,
+  Image as ImageIcon,
+  Type,
+  ArrowUpRight,
+  ArrowDownRight,
+} from 'lucide-react';
 
 export default function HomePage() {
   const [telemetry, setTelemetry] = useState({
@@ -51,36 +51,32 @@ export default function HomePage() {
       value: telemetry.totalAnalyses.toLocaleString(),
       change: '+14.2% this week',
       isUp: true,
-      icon: FaChartLine,
-      color: 'from-blue-600 to-indigo-600',
-      badgeColor: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+      icon: TrendingUp,
+      accentBg: 'bg-[#8E9A7D]/10 text-[#7F8F73]',
     },
     {
       title: 'AVERAGE TRUST SCORE',
       value: `${telemetry.avgTrustScore}%`,
       change: '+2.1% score gain',
       isUp: true,
-      icon: FaShieldAlt,
-      color: 'from-emerald-600 to-teal-600',
-      badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+      icon: Shield,
+      accentBg: 'bg-[#5B8C5A]/10 text-[#5B8C5A]',
     },
     {
       title: 'THREATS FLAGGED',
       value: telemetry.threatsDetected,
       change: '-5 critical alerts',
       isUp: false,
-      icon: FaExclamationTriangle,
-      color: 'from-rose-600 to-red-600',
-      badgeColor: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
+      icon: AlertTriangle,
+      accentBg: 'bg-[#D96C6C]/10 text-[#D96C6C]',
     },
     {
       title: 'FILES PROCESSED',
       value: telemetry.filesProcessed,
       change: '+89 PDF & Images',
       isUp: true,
-      icon: FaFileAlt,
-      color: 'from-amber-600 to-orange-600',
-      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+      icon: FileText,
+      accentBg: 'bg-[#D9A441]/10 text-[#D9A441]',
     },
   ];
 
@@ -93,56 +89,51 @@ export default function HomePage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Page Title & Cluster Health Summary */}
+      {/* Header Summary */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight flex items-center space-x-3">
-            <span>Enterprise Security Dashboard</span>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-[#2B2B2B] tracking-tight">
+            Enterprise Security Dashboard
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-xs text-[#6B7280] mt-1">
             Real-time digital trust telemetry, multi-modal threat analysis, and AI risk monitoring.
           </p>
         </div>
 
-        <div className="flex items-center space-x-3 bg-slate-900 border border-slate-800 p-2.5 px-4 rounded-2xl shadow-lg">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-          <div className="text-xs">
-            <span className="text-slate-400 block">System Cluster:</span>
-            <span className="text-white font-bold font-mono">NODE_ENV: DEVELOPMENT</span>
+        <div className="flex items-center space-x-2.5 bg-white border border-[#E5E7EB] px-3.5 py-2 rounded-xl shadow-xs">
+          <span className="w-2 h-2 rounded-full bg-[#5B8C5A] animate-pulse" />
+          <div className="text-xs font-mono text-[#6B7280]">
+            Cluster Mode: <strong className="text-[#2B2B2B]">DEVELOPMENT</strong>
           </div>
         </div>
       </div>
 
-      {/* KPI Summary Cards */}
+      {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {kpiCards.map((kpi, idx) => {
           const Icon = kpi.icon;
           return (
             <motion.div
               key={kpi.title}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: idx * 0.08 }}
-              className="p-6 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/50 border border-slate-800/80 shadow-xl space-y-4 hover:border-slate-700 transition-all group"
+              transition={{ duration: 0.3, delay: idx * 0.05 }}
+              className="p-6 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs space-y-4 hover:border-[#D1D5DB] transition-all group"
             >
               <div className="flex justify-between items-center">
-                <span className="text-[11px] font-semibold text-slate-400 tracking-wider">
+                <span className="text-[11px] font-semibold text-[#9CA3AF] tracking-wider uppercase">
                   {kpi.title}
                 </span>
-                <div
-                  className={`w-10 h-10 rounded-xl bg-gradient-to-br ${kpi.color} flex items-center justify-center text-white shadow-lg`}
-                >
-                  <Icon className="text-lg" />
+                <div className={`w-9 h-9 rounded-xl ${kpi.accentBg} flex items-center justify-center`}>
+                  <Icon className="w-4 h-4 stroke-[1.75]" />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <h3 className="text-3xl font-black text-white tracking-tight">{kpi.value}</h3>
-                <div className="flex items-center space-x-1.5 pt-1">
-                  <span
-                    className={`inline-flex items-center space-x-1 text-[11px] font-bold px-2 py-0.5 rounded-md border ${kpi.badgeColor}`}
-                  >
-                    {kpi.isUp ? <FaArrowUp size={10} /> : <FaArrowDown size={10} />}
+                <h3 className="text-3xl font-black text-[#2B2B2B] tracking-tight">{kpi.value}</h3>
+                <div className="flex items-center space-x-1 pt-1">
+                  <span className="inline-flex items-center space-x-1 text-[11px] font-semibold text-[#6B7280]">
+                    {kpi.isUp ? <ArrowUpRight className="w-3 h-3 text-[#5B8C5A]" /> : <ArrowDownRight className="w-3 h-3 text-[#D96C6C]" />}
                     <span>{kpi.change}</span>
                   </span>
                 </div>
@@ -154,40 +145,40 @@ export default function HomePage() {
 
       {/* Charts & Analytics Visualizers */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Trust Score Trend Area Visualizer */}
-        <div className="lg:col-span-2 p-6 rounded-2xl bg-slate-900/90 border border-slate-800/80 shadow-xl space-y-6">
-          <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+        {/* Trust Score Trend Card */}
+        <div className="lg:col-span-2 p-6 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs space-y-6">
+          <div className="flex justify-between items-center border-b border-[#E5E7EB] pb-4">
             <div>
-              <h3 className="text-base font-bold text-white">Trust Score Stability Trend</h3>
-              <p className="text-xs text-slate-400">7-Day system-wide composite score trajectory</p>
+              <h3 className="text-base font-bold text-[#2B2B2B]">Trust Score Stability Trend</h3>
+              <p className="text-xs text-[#6B7280]">7-Day composite score trajectory</p>
             </div>
-            <span className="px-3 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-semibold rounded-full">
+            <span className="px-3 py-1 bg-[#F8F7F4] text-[#7F8F73] border border-[#E5E7EB] text-xs font-semibold rounded-full">
               7-Day Window
             </span>
           </div>
 
-          {/* Custom SVG Trend Wave Graph */}
+          {/* SVG Trend Wave Graph */}
           <div className="h-56 w-full relative flex items-end">
             <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150">
               <defs>
-                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2563EB" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#2563EB" stopOpacity="0.0" />
+                <linearGradient id="chartSageGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#8E9A7D" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#8E9A7D" stopOpacity="0.0" />
                 </linearGradient>
               </defs>
               <path
                 d="M 0 100 Q 80 40 160 80 T 320 30 T 500 60 L 500 150 L 0 150 Z"
-                fill="url(#chartGradient)"
+                fill="url(#chartSageGradient)"
               />
               <path
                 d="M 0 100 Q 80 40 160 80 T 320 30 T 500 60"
                 fill="none"
-                stroke="#2563EB"
-                strokeWidth="3.5"
+                stroke="#8E9A7D"
+                strokeWidth="3"
                 strokeLinecap="round"
               />
             </svg>
-            <div className="absolute inset-0 flex justify-between items-end px-2 text-[11px] font-mono text-slate-500 pb-1">
+            <div className="absolute inset-0 flex justify-between items-end px-2 text-[11px] font-mono text-[#9CA3AF] pb-1">
               <span>Mon (82%)</span>
               <span>Tue (85%)</span>
               <span>Wed (79%)</span>
@@ -200,109 +191,109 @@ export default function HomePage() {
         </div>
 
         {/* Modality Breakdown Bar */}
-        <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/80 shadow-xl space-y-6">
-          <h3 className="text-base font-bold text-white border-b border-slate-800 pb-4">
+        <div className="p-6 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs space-y-6">
+          <h3 className="text-base font-bold text-[#2B2B2B] border-b border-[#E5E7EB] pb-4">
             Analysis Modality Breakdown
           </h3>
 
           <div className="space-y-4">
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-medium">
-                <span className="text-slate-300 flex items-center space-x-2">
-                  <FaFileAlt className="text-blue-400" />
+                <span className="text-[#2B2B2B] flex items-center space-x-2">
+                  <FileText className="w-3.5 h-3.5 text-[#8E9A7D]" />
                   <span>Document Scans</span>
                 </span>
-                <span className="text-white font-bold">42% (600 files)</span>
+                <span className="text-[#2B2B2B] font-bold">42% (600)</span>
               </div>
-              <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 w-[42%]" />
+              <div className="h-2 w-full bg-[#F3F2EF] rounded-full overflow-hidden">
+                <div className="h-full bg-[#8E9A7D] w-[42%]" />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-medium">
-                <span className="text-slate-300 flex items-center space-x-2">
-                  <FaImage className="text-indigo-400" />
+                <span className="text-[#2B2B2B] flex items-center space-x-2">
+                  <ImageIcon className="w-3.5 h-3.5 text-[#5B8C5A]" />
                   <span>Image Forensics</span>
                 </span>
-                <span className="text-white font-bold">28% (400 files)</span>
+                <span className="text-[#2B2B2B] font-bold">28% (400)</span>
               </div>
-              <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 w-[28%]" />
+              <div className="h-2 w-full bg-[#F3F2EF] rounded-full overflow-hidden">
+                <div className="h-full bg-[#5B8C5A] w-[28%]" />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-medium">
-                <span className="text-slate-300 flex items-center space-x-2">
-                  <FaGlobe className="text-emerald-400" />
+                <span className="text-[#2B2B2B] flex items-center space-x-2">
+                  <Globe className="w-3.5 h-3.5 text-[#D9A441]" />
                   <span>Website URL Scans</span>
                 </span>
-                <span className="text-white font-bold">18% (256 URLs)</span>
+                <span className="text-[#2B2B2B] font-bold">18% (256)</span>
               </div>
-              <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 w-[18%]" />
+              <div className="h-2 w-full bg-[#F3F2EF] rounded-full overflow-hidden">
+                <div className="h-full bg-[#D9A441] w-[18%]" />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-medium">
-                <span className="text-slate-300 flex items-center space-x-2">
-                  <FaFont className="text-amber-400" />
+                <span className="text-[#2B2B2B] flex items-center space-x-2">
+                  <Type className="w-3.5 h-3.5 text-[#D96C6C]" />
                   <span>Text Authenticity</span>
                 </span>
-                <span className="text-white font-bold">12% (172 texts)</span>
+                <span className="text-[#2B2B2B] font-bold">12% (172)</span>
               </div>
-              <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-500 w-[12%]" />
+              <div className="h-2 w-full bg-[#F3F2EF] rounded-full overflow-hidden">
+                <div className="h-full bg-[#D96C6C] w-[12%]" />
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Live Threat Incident Feed Table */}
-      <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/80 shadow-xl space-y-4">
-        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+      {/* Incident Feed Table */}
+      <div className="p-6 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs space-y-4">
+        <div className="flex justify-between items-center border-b border-[#E5E7EB] pb-3">
           <div>
-            <h3 className="text-base font-bold text-white">Recent Security Threat Incidents</h3>
-            <p className="text-xs text-slate-400">Live operational alerts flagged by AI evaluation engines</p>
+            <h3 className="text-base font-bold text-[#2B2B2B]">Recent Security Threat Incidents</h3>
+            <p className="text-xs text-[#6B7280]">Live operational alerts flagged by AI evaluation engines</p>
           </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-950/60 text-slate-400 font-semibold uppercase tracking-wider">
+            <thead className="bg-[#F8F7F4] text-[#6B7280] font-semibold uppercase tracking-wider">
               <tr>
-                <th className="p-3 rounded-l-xl">Target Entity</th>
-                <th className="p-3">Type</th>
-                <th className="p-3">Risk Level</th>
-                <th className="p-3">Trust Score</th>
-                <th className="p-3">Threat Description</th>
-                <th className="p-3 rounded-r-xl">Timestamp</th>
+                <th className="p-3.5 rounded-l-xl">Target Entity</th>
+                <th className="p-3.5">Type</th>
+                <th className="p-3.5">Risk Level</th>
+                <th className="p-3.5">Trust Score</th>
+                <th className="p-3.5">Threat Description</th>
+                <th className="p-3.5 rounded-r-xl">Timestamp</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
+            <tbody className="divide-y divide-[#E5E7EB] font-mono">
               {recentIncidents.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
-                  <td className="p-3 text-white font-medium truncate max-w-xs">{item.entity}</td>
-                  <td className="p-3 text-slate-400">{item.type}</td>
-                  <td className="p-3">
+                <tr key={item.id} className="hover:bg-[#F8F7F4] transition-colors">
+                  <td className="p-3.5 text-[#2B2B2B] font-medium truncate max-w-xs">{item.entity}</td>
+                  <td className="p-3.5 text-[#6B7280] font-sans">{item.type}</td>
+                  <td className="p-3.5">
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                         item.risk === 'Critical'
-                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                          ? 'bg-[#D96C6C]/15 text-[#D96C6C] border border-[#D96C6C]/20'
                           : item.risk === 'High'
-                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                          : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                          ? 'bg-[#D9A441]/15 text-[#D9A441] border border-[#D9A441]/20'
+                          : 'bg-[#5B8C5A]/15 text-[#5B8C5A] border border-[#5B8C5A]/20'
                       }`}
                     >
                       {item.risk}
                     </span>
                   </td>
-                  <td className="p-3 font-bold text-white">{item.score}%</td>
-                  <td className="p-3 text-slate-300 font-sans">{item.detail}</td>
-                  <td className="p-3 text-slate-500">{item.time}</td>
+                  <td className="p-3.5 font-bold text-[#2B2B2B]">{item.score}%</td>
+                  <td className="p-3.5 text-[#6B7280] font-sans">{item.detail}</td>
+                  <td className="p-3.5 text-[#9CA3AF]">{item.time}</td>
                 </tr>
               ))}
             </tbody>
