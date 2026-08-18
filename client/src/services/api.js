@@ -1,7 +1,12 @@
 import axios from 'axios';
 
-// Get base URL from Vite environment variable or default to localhost:5000
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+// Get base URL from Vite environment variable or default to localhost:5000/api/v1
+let rawBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').trim().replace(/\/+$/, '');
+if (!rawBaseUrl.endsWith('/api/v1') && !rawBaseUrl.endsWith('/api')) {
+  rawBaseUrl = `${rawBaseUrl}/api/v1`;
+}
+
+const API_BASE_URL = rawBaseUrl;
 
 // Create Axios Instance
 const api = axios.create({
@@ -26,7 +31,6 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    // Track request start timestamp for precise latency measurement
     config.metadata = { startTime: new Date() };
     return config;
   },
@@ -38,7 +42,6 @@ api.interceptors.request.use(
 // 2. Response Interceptor: Handle status codes, calculate latency, log errors
 api.interceptors.response.use(
   (response) => {
-    // Compute request duration in milliseconds
     const duration = new Date() - response.config.metadata.startTime;
     response.durationMs = duration;
     return response;
@@ -59,12 +62,10 @@ api.interceptors.response.use(
       data: error.response?.data || null,
     };
 
-    // Global Error Logger Notification
     if (errorLoggerCallback) {
       errorLoggerCallback(errorDetail);
     }
 
-    // Handle 401 Unauthorized globally
     if (error.response?.status === 401) {
       console.warn('[API Interceptor] 401 Unauthorized encountered. Token may be expired.');
     }

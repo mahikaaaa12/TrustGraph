@@ -15,7 +15,7 @@ async function startServer() {
   // Enforce Database Connection BEFORE HTTP Server initialization
   await connectDB();
 
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 [TrustGraph Engine] Server running on port ${PORT} [Env: ${process.env.NODE_ENV || 'development'}]`);
   });
 

@@ -112,13 +112,14 @@ export default function ImagePage() {
   const originalPreviewUrl = selectedFile ? URL.createObjectURL(selectedFile) : '';
 
   const getElaHeatmapUrl = () => {
+    let apiHost = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim().replace(/\/api\/v1\/?$/, '').replace(/\/api\/?$/, '').replace(/\/+$/, '');
     if (analysisResult?.analysisId) {
-      return `http://localhost:5000/api/v1/images/${analysisResult.analysisId}/ela`;
+      return `${apiHost}/api/v1/images/${analysisResult.analysisId}/ela`;
     }
     const rawUrl = ela.elaHeatmapUrl || (ela.elaHeatmapFileName ? `/uploads/${ela.elaHeatmapFileName}` : '');
     if (!rawUrl) return '';
     if (rawUrl.startsWith('http')) return rawUrl;
-    return `http://localhost:5000${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+    return `${apiHost}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
   };
 
   return (
