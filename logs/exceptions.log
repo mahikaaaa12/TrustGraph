@@ -1,0 +1,22 @@
+[2026-08-18 12:25:02:252] [[31merror[39m]: [31muncaughtException: Identifier 'elaFileName' has already been declared[39m
+[31mD:\Projects\TrustGraph\src\services\image.service.js:290[39m
+[31m      const elaFileName = `ela-${fileName}`;[39m
+[31m            ^[39m
+
+[31mSyntaxError: Identifier 'elaFileName' has already been declared[39m
+[31m    at wrapSafe (node:internal/modules/cjs/loader:1743:18)[39m
+[31m    at Module._compile (node:internal/modules/cjs/loader:1786:20)[39m
+[31m    at Object..js (node:internal/modules/cjs/loader:1943:10)[39m
+[31m    at Module.load (node:internal/modules/cjs/loader:1533:32)[39m
+[31m    at Module._load (node:internal/modules/cjs/loader:1335:12)[39m
+[31m    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)[39m
+[31m    at Module.require (node:internal/modules/cjs/loader:1556:12)[39m
+[31m    at require (node:internal/modules/helpers:152:16)[39m
+[31m    at Object.<anonymous> (D:\Projects\TrustGraph\src\controllers\image.controller.js:1:22)[39m
+[31m    at Module._compile (node:internal/modules/cjs/loader:1812:14)[39m
+[31m    at Object..js (node:internal/modules/cjs/loader:1943:10)[39m
+[31m    at Module.load (node:internal/modules/cjs/loader:1533:32)[39m
+[31m    at Module._load (node:internal/modules/cjs/loader:1335:12)[39m
+[31m    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)[39m
+[31m    at Module.require (node:internal/modules/cjs/loader:1556:12)[39m
+[31m    at require (node:internal/modules/helpers:152:16)[39m

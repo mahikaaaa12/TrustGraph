@@ -1,4 +1,7 @@
+const path = require('path');
+const fs = require('fs');
 const ImageService = require('../services/image.service');
+const Analysis = require('../models/Analysis');
 const asyncHandler = require('../utils/asyncHandler');
 const { HTTP_STATUS } = require('../constants');
 
@@ -23,4 +26,29 @@ exports.analyzeImage = asyncHandler(async (req, res) => {
     message: 'Image forensics and Error Level Analysis completed successfully.',
     data: result,
   });
+});
+
+exports.getElaHeatmap = asyncHandler(async (req, res) => {
+  const analysisRecord = await Analysis.findOne({ _id: req.params.id, userId: req.user._id });
+  if (!analysisRecord) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      success: false,
+      message: 'Analysis record not found or access denied.',
+    });
+  }
+
+  const targetEntity = analysisRecord.targetEntity;
+  const fileName = `ela-${targetEntity}`;
+  const filePath = path.join(__dirname, '../uploads', fileName);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      success: false,
+      message: 'ELA heatmap image file not found on disk.',
+    });
+  }
+
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  fs.createReadStream(filePath).pipe(res);
 });

@@ -10,12 +10,17 @@ const { HTTP_STATUS } = require('../constants');
 class TrustScoreService {
   /**
    * Weights assigned to each domain modality based on enterprise risk impact.
+   * Documented Weights:
+   * - Authenticity: 35% (Image ELA/EXIF & Text Perplexity/Burstiness)
+   * - Security: 25% (Website TLS/SSL & Document PII Leaks)
+   * - Metadata: 20% (EXIF hardware tags & PDF/Document Headers)
+   * - Reputation: 20% (Domain Blacklists & Clickbait Sensationalism)
    */
   static WEIGHTS = Object.freeze({
-    authenticity: 0.35, // Forgery detection, AI generation risk, text manipulation
-    security: 0.25,     // TLS/SSL encryption, PII leaks, API key exposures
-    metadata: 0.20,     // EXIF tags, PDF producer, WHOIS creation date
-    reputation: 0.20,   // VirusTotal blacklists, domain age, clickbait index
+    authenticity: 0.35,
+    security: 0.25,
+    metadata: 0.20,
+    reputation: 0.20,
   });
 
   /**
@@ -28,24 +33,17 @@ class TrustScoreService {
 
   /**
    * Calculates overall System Confidence Score (0.0 to 1.0)
-   * Formula: Combines Data Availability Ratio (N / N_total) with Variance Penalty.
    */
   static calculateConfidence(scores) {
     const validScores = Object.values(scores).filter((v) => v !== null && v !== undefined);
     if (validScores.length === 0) return 0.0;
 
-    // 1. Data Availability Ratio (e.g. 3 of 4 modalities present = 0.75)
     const availabilityRatio = validScores.length / 4;
-
-    // 2. Variance Penalty (High variance across scores reduces confidence)
     const mean = validScores.reduce((a, b) => a + b, 0) / validScores.length;
     const variance = validScores.reduce((sq, n) => sq + Math.pow(n - mean, 2), 0) / validScores.length;
     const stdDev = Math.sqrt(variance);
 
-    // Variance penalty factor (higher std dev = higher uncertainty)
     const variancePenalty = Math.min(0.25, (stdDev / 100) * 0.3);
-
-    // Base confidence starts at 0.70 for single modality up to 0.98 for multi-modal consensus
     let confidence = 0.65 + availabilityRatio * 0.3 - variancePenalty;
     return parseFloat(Math.max(0.1, Math.min(0.99, confidence)).toFixed(2));
   }
@@ -56,7 +54,6 @@ class TrustScoreService {
   static async evaluateTrustScore(inputs, userId) {
     const { imageScore, documentScore, websiteScore, textScore } = inputs;
 
-    // 1. Normalize Modality Inputs
     const normImage = this.normalizeScore(imageScore);
     const normDoc = this.normalizeScore(documentScore);
     const normWeb = this.normalizeScore(websiteScore);
@@ -69,32 +66,26 @@ class TrustScoreService {
       text: normText,
     };
 
-    // Require at least one valid score modality
     const providedScores = Object.values(inputScores).filter((v) => v !== null);
     if (providedScores.length === 0) {
       throw new AppError('Please provide at least one valid modality score (imageScore, documentScore, websiteScore, textScore).', HTTP_STATUS.BAD_REQUEST);
     }
 
-    // 2. Map Modality Inputs onto Strategic Dimension Categories
-    // Authenticity: Derived from Image Forensics & Text Authenticity
     const authenticityVal =
       normImage !== null && normText !== null
         ? normImage * 0.5 + normText * 0.5
         : normImage ?? normText ?? normDoc ?? 75.0;
 
-    // Security: Derived from Website SSL & Document PII Scans
     const securityVal =
       normWeb !== null && normDoc !== null
         ? normWeb * 0.6 + normDoc * 0.4
         : normWeb ?? normDoc ?? 80.0;
 
-    // Metadata Provenance: Derived from Image EXIF & Document Header Telemetry
     const metadataVal =
       normImage !== null && normDoc !== null
         ? normImage * 0.4 + normDoc * 0.6
         : normDoc ?? normImage ?? 70.0;
 
-    // Source Reputation: Derived from Website Blacklists & Text Fake News Index
     const reputationVal =
       normWeb !== null && normText !== null
         ? normWeb * 0.7 + normText * 0.3
@@ -107,26 +98,64 @@ class TrustScoreService {
       sourceReputation: parseFloat(reputationVal.toFixed(1)),
     };
 
-    // 3. Compute Weighted Average Composite Trust Score
+    const dimensions = {
+      authenticity: {
+        score: breakdown.authenticityIndex,
+        weight: this.WEIGHTS.authenticity,
+        contribution: parseFloat((breakdown.authenticityIndex * this.WEIGHTS.authenticity).toFixed(1)),
+      },
+      security: {
+        score: breakdown.securityEncryption,
+        weight: this.WEIGHTS.security,
+        contribution: parseFloat((breakdown.securityEncryption * this.WEIGHTS.security).toFixed(1)),
+      },
+      metadata: {
+        score: breakdown.metadataProvenance,
+        weight: this.WEIGHTS.metadata,
+        contribution: parseFloat((breakdown.metadataProvenance * this.WEIGHTS.metadata).toFixed(1)),
+      },
+      reputation: {
+        score: breakdown.sourceReputation,
+        weight: this.WEIGHTS.reputation,
+        contribution: parseFloat((breakdown.sourceReputation * this.WEIGHTS.reputation).toFixed(1)),
+      },
+    };
+
     const overallTrustScore = parseFloat(
       (
-        breakdown.authenticityIndex * this.WEIGHTS.authenticity +
-        breakdown.securityEncryption * this.WEIGHTS.security +
-        breakdown.metadataProvenance * this.WEIGHTS.metadata +
-        breakdown.sourceReputation * this.WEIGHTS.reputation
+        dimensions.authenticity.contribution +
+        dimensions.security.contribution +
+        dimensions.metadata.contribution +
+        dimensions.reputation.contribution
       ).toFixed(1)
     );
 
-    // 4. Compute Statistical Confidence Level
     const confidenceScore = this.calculateConfidence(inputScores);
 
-    // 5. Categorize Risk Profile
     let riskCategory = 'low';
     if (overallTrustScore < 40) riskCategory = 'critical';
     else if (overallTrustScore < 65) riskCategory = 'high';
     else if (overallTrustScore < 85) riskCategory = 'medium';
 
-    // 6. Generate Insights & Summary
+    const positiveFactors = [];
+    const negativeFactors = [];
+    const evidence = [];
+
+    if (dimensions.authenticity.score >= 80) positiveFactors.push('High authenticity score across image and text forensics.');
+    else negativeFactors.push('Authenticity index flagged potential synthetic alteration or AI generation.');
+
+    if (dimensions.security.score >= 80) positiveFactors.push('Strong security and TLS encryption parameters.');
+    else negativeFactors.push('Security index flagged potential unencrypted socket or sensitive PII exposures.');
+
+    if (dimensions.metadata.score >= 75) positiveFactors.push('Rich metadata provenance and header tags verified.');
+    else negativeFactors.push('Metadata provenance lacks complete camera hardware or producer details.');
+
+    if (dimensions.reputation.score >= 80) positiveFactors.push('Domain and text reputation benchmarks clean.');
+    else negativeFactors.push('Source reputation indicates potential domain blacklist or clickbait patterns.');
+
+    evidence.push(`Evaluated ${providedScores.length} of 4 input modalities.`);
+    evidence.push(`Variance-adjusted statistical confidence: ${(confidenceScore * 100).toFixed(0)}%.`);
+
     const insights = [
       `Overall Multi-Modal Trust Index: ${overallTrustScore} / 100.`,
       `Evaluated across ${providedScores.length} active input modality channel(s).`,
@@ -138,7 +167,6 @@ class TrustScoreService {
         : 'SECURITY CLEAN: Infrastructure and encryption parameters meet safety benchmarks.',
     ];
 
-    // 7. Save Analysis Document in MongoDB
     const analysisRecord = await Analysis.create({
       userId,
       targetEntity: 'Multi-Modal Trust Evaluation',
@@ -155,7 +183,6 @@ class TrustScoreService {
       },
     });
 
-    // 8. Log History Event
     await History.create({
       userId,
       action: 'ANALYSIS_RUN',
@@ -168,11 +195,34 @@ class TrustScoreService {
       },
     });
 
+    try {
+      const NotificationService = require('./notification.service');
+      await NotificationService.createNotification({
+        userId,
+        type: 'ANALYSIS_COMPLETE',
+        title: `Multi-Modal Trust Score Evaluation`,
+        message: `Composite Trust Score computed: ${overallTrustScore}% (${riskCategory.toUpperCase()} risk profile). Confidence: ${(confidenceScore * 100).toFixed(0)}%.`,
+        severity: riskCategory === 'critical' ? 'critical' : riskCategory === 'high' ? 'warning' : 'success',
+        entityId: analysisRecord._id,
+      });
+    } catch (nErr) {
+      console.error('[TrustScoreService] Notification trigger error:', nErr.message);
+    }
+
     return {
       analysisId: analysisRecord._id,
       overallTrustScore,
       confidenceScore,
       riskCategory,
+      dimensions,
+      positiveFactors,
+      negativeFactors,
+      evidence,
+      dataAvailability: {
+        providedChannels: providedScores.length,
+        totalChannels: 4,
+        availabilityRatio: providedScores.length / 4,
+      },
       weights: this.WEIGHTS,
       breakdown,
       inputScores,

@@ -5,6 +5,7 @@ import { ErrorLogProvider } from './context/ErrorLogContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import GuestRoute from './components/GuestRoute';
 import DashboardLayout from './layouts/DashboardLayout';
+import ErrorBoundary from './components/ErrorBoundary';
 
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
@@ -16,6 +17,7 @@ import WebsitePage from './pages/WebsitePage';
 import TextPage from './pages/TextPage';
 import TrustScorePage from './pages/TrustScorePage';
 import HistoryPage from './pages/HistoryPage';
+import AnalysisDetailsPage from './pages/AnalysisDetailsPage';
 import ReportsPage from './pages/ReportsPage';
 import NotificationsPage from './pages/NotificationsPage';
 import ApiTesterPage from './pages/ApiTesterPage';
@@ -40,7 +42,14 @@ export default function App() {
 
             {/* Protected Enterprise Dashboard Routes (Redirects to /login if unauthenticated) */}
             <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route
+                path="/dashboard"
+                element={
+                  <ErrorBoundary>
+                    <DashboardLayout />
+                  </ErrorBoundary>
+                }
+              >
                 <Route index element={<HomePage />} />
                 <Route path="document" element={<DocumentPage />} />
                 <Route path="image" element={<ImagePage />} />
@@ -48,6 +57,7 @@ export default function App() {
                 <Route path="text" element={<TextPage />} />
                 <Route path="trust-score" element={<TrustScorePage />} />
                 <Route path="history" element={<HistoryPage />} />
+                <Route path="analysis/:id" element={<AnalysisDetailsPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="api-tester" element={<ApiTesterPage />} />

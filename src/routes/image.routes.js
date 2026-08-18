@@ -7,5 +7,6 @@ const router = express.Router();
 router.use(protect);
 
 router.post('/analyze', imageController.analyzeImage);
+router.get('/:id/ela', imageController.getElaHeatmap);
 
 module.exports = router;

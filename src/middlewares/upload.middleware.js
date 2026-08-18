@@ -9,13 +9,15 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
   'application/msword', // DOC
+  'text/plain',
+  'text/markdown',
   'image/jpeg',
   'image/png',
   'image/webp',
   'image/gif',
 ]);
 
-const ALLOWED_EXTENSIONS = new Set(['.pdf', '.docx', '.doc', '.jpg', '.jpeg', '.png', '.webp', '.gif']);
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.docx', '.doc', '.txt', '.md', '.jpg', '.jpeg', '.png', '.webp', '.gif']);
 
 // Ensure uploads directory exists on disk
 const uploadDir = path.join(__dirname, '../uploads');
@@ -32,7 +34,6 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    // Sanitize original filename (remove special chars, preserve extension)
     const ext = path.extname(file.originalname).toLowerCase();
     const sanitizedBase = path
       .basename(file.originalname, ext)
@@ -52,7 +53,7 @@ const fileFilter = (req, file, cb) => {
   const mimeType = file.mimetype.toLowerCase();
 
   const isExtensionValid = ALLOWED_EXTENSIONS.has(ext);
-  const isMimeValid = ALLOWED_MIME_TYPES.has(mimeType);
+  const isMimeValid = ALLOWED_MIME_TYPES.has(mimeType) || mimeType.startsWith('text/');
 
   if (isExtensionValid && isMimeValid) {
     return cb(null, true);
@@ -60,7 +61,7 @@ const fileFilter = (req, file, cb) => {
 
   cb(
     new AppError(
-      `Invalid file format (${ext} / ${mimeType}). Only PDF, DOCX, and JPEG/PNG/WEBP/GIF images are allowed.`,
+      `Invalid file format (${ext} / ${mimeType}). PDF, DOCX, TXT, and JPEG/PNG/WEBP images are allowed.`,
       HTTP_STATUS.BAD_REQUEST
     ),
     false

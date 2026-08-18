@@ -13,6 +13,11 @@ const imageRoutes = require('./routes/image.routes');
 const websiteRoutes = require('./routes/website.routes');
 const textRoutes = require('./routes/text.routes');
 const trustScoreRoutes = require('./routes/trustScore.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
+const historyRoutes = require('./routes/history.routes');
+const notificationRoutes = require('./routes/notification.routes');
+const reportRoutes = require('./routes/report.routes');
+
 const globalErrorHandler = require('./middlewares/error.middleware');
 const AppError = require('./utils/appError');
 const { DEFAULT_CONFIG, HTTP_STATUS, RESPONSE_MESSAGES } = require('./constants');
@@ -21,8 +26,13 @@ function createApp() {
   const app = express();
 
   // 1. Security & Protection Middlewares
-  app.use(helmet());
-  app.use(cors());
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  app.use(
+    cors({
+      origin: process.env.CLIENT_ORIGIN || ['http://localhost:5173', 'http://127.0.0.1:5173'],
+      credentials: true,
+    })
+  );
 
   // 2. Performance & Body Parsing Middlewares
   app.use(compression());
@@ -38,7 +48,7 @@ function createApp() {
   // 5. Interactive Swagger UI Documentation (/api/docs)
   setupSwagger(app);
 
-  // 6. Health Check Endpoint
+  // 6. Health Check Endpoint (Supported at /health, /api/health, and /api/v1/health)
   const healthCheckHandler = (req, res) => {
     const dbState = getDbState();
     const isDbConnected = dbState === 1;
@@ -58,15 +68,23 @@ function createApp() {
 
   app.get('/health', healthCheckHandler);
   app.get('/api/health', healthCheckHandler);
+  app.get('/api/v1/health', healthCheckHandler);
 
-  // 7. Mount API Feature Routes
-  app.use(`${DEFAULT_CONFIG.API_PREFIX}/auth`, authRoutes);
-  app.use(`${DEFAULT_CONFIG.API_PREFIX}/files`, fileRoutes);
-  app.use(`${DEFAULT_CONFIG.API_PREFIX}/documents`, documentRoutes);
-  app.use(`${DEFAULT_CONFIG.API_PREFIX}/images`, imageRoutes);
-  app.use(`${DEFAULT_CONFIG.API_PREFIX}/websites`, websiteRoutes);
-  app.use(`${DEFAULT_CONFIG.API_PREFIX}/text`, textRoutes);
-  app.use(`${DEFAULT_CONFIG.API_PREFIX}/trust-score`, trustScoreRoutes);
+  // 7. Mount API Feature Routes (Supports both /api/v1/* and /api/*)
+  const prefixes = [DEFAULT_CONFIG.API_PREFIX, '/api'];
+  prefixes.forEach((prefix) => {
+    app.use(`${prefix}/auth`, authRoutes);
+    app.use(`${prefix}/files`, fileRoutes);
+    app.use(`${prefix}/documents`, documentRoutes);
+    app.use(`${prefix}/images`, imageRoutes);
+    app.use(`${prefix}/websites`, websiteRoutes);
+    app.use(`${prefix}/text`, textRoutes);
+    app.use(`${prefix}/trust-score`, trustScoreRoutes);
+    app.use(`${prefix}/dashboard`, dashboardRoutes);
+    app.use(`${prefix}/history`, historyRoutes);
+    app.use(`${prefix}/notifications`, notificationRoutes);
+    app.use(`${prefix}/reports`, reportRoutes);
+  });
 
   // 8. Global 404 Unhandled Route Middleware (Passes AppError to next)
   app.use((req, res, next) => {

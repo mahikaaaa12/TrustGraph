@@ -1,105 +1,102 @@
 const Analysis = require('../models/Analysis');
 const History = require('../models/History');
+const AiGenerationDetector = require('./aiGenerationDetector');
 const AppError = require('../utils/appError');
 const { HTTP_STATUS } = require('../constants');
 
 /**
- * Production-Ready Text Analyzer Service
- * Encapsulates AI Text Detection (Perplexity/Burstiness), Sentiment Analysis,
- * Fake News Probability, and Cosine Text Similarity Algorithms.
+ * Service Layer for Text Authenticity, AI Text Detection, Social Engineering Scans, and PII Leaks
+ * Enforces the core TrustGraph business rule: DETECTION !== DANGER.
  */
 class TextService {
   /**
-   * 1. AI-Generated Text Detection via Perplexity & Burstiness Heuristics
-   * Human writing features high variance in sentence length (burstiness) and rich vocabulary entropy.
-   * AI text (ChatGPT, Claude) exhibits uniform sentence structure, low perplexity, and predictable n-grams.
+   * 1. AI-Generated Text Assessment via AiGenerationDetector Engine
    */
   static detectAiGeneratedText(text) {
-    const sentences = text
-      .split(/[.!?]+/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    const words = text.toLowerCase().match(/\b[a-z']+\b/g) || [];
+    return AiGenerationDetector.detectAiGeneration(text);
+  }
 
-    if (words.length < 10) {
-      return {
-        aiProbability: 0.1,
-        isLikelyAiGenerated: false,
-        perplexityScore: 85.0,
-        burstinessScore: 75.0,
-        indicators: ['Text snippet too short for reliable statistical AI evaluation.'],
-      };
-    }
+  /**
+   * 2. Social Engineering & Phishing Text Detection
+   * Evaluates urgency, threats, OTP/password requests, payment demands, and security bypass requests.
+   */
+  static detectSocialEngineering(text) {
+    const textLower = text.toLowerCase();
+    const signals = [];
 
-    // Sentence Length Variance (Burstiness Metric)
-    const sentenceLengths = sentences.map((s) => (s.match(/\b\w+\b/g) || []).length);
-    const meanLength = sentenceLengths.reduce((a, b) => a + b, 0) / (sentenceLengths.length || 1);
-    const variance =
-      sentenceLengths.reduce((sq, n) => sq + Math.pow(n - meanLength, 2), 0) /
-      (sentenceLengths.length || 1);
-    const stdDev = Math.sqrt(variance);
-    const burstinessScore = parseFloat(Math.min(100, Math.max(0, stdDev * 12)).toFixed(2));
-
-    // Vocabulary Entropy (Type-Token Ratio)
-    const uniqueWords = new Set(words);
-    const typeTokenRatio = uniqueWords.size / words.length;
-
-    // AI Indicator Triggers
-    const aiPhrases = [
-      'in conclusion',
-      'furthermore',
-      'it is important to note',
-      'delve into',
-      'testament to',
-      'tapestry of',
-      'seamlessly',
-      'pivotal role',
-      'beacon of',
-      'vital to understand',
+    const urgencyPatterns = [
+      /\b(?:within|in)\s+(?:10|15|30|60|24)\s+(?:minutes|hours|seconds)\b/i,
+      /\b(?:immediately|urgent|action\s+required|account\s+(?:suspended|terminated|deleted))\b/i,
+      /\b(?:failure\s+to\s+comply|permanent\s+deactivation)\b/i,
     ];
 
-    let matchedAiPhrases = 0;
-    aiPhrases.forEach((phrase) => {
-      if (text.toLowerCase().includes(phrase)) matchedAiPhrases++;
+    const credentialPatterns = [
+      /\b(?:provide|enter|confirm|send)\s+(?:your\s+)?(?:password|otp|pin|passcode|ssn|social\s+security|credit\s+card)\b/i,
+      /\b(?:click\s+here\s+to\s+(?:verify|login|restore|claim))\b/i,
+      /\b(?:wire\s+transfer|gift\s+card|bitcoin|crypto\s+payment)\b/i,
+    ];
+
+    let urgencyMatches = 0;
+    urgencyPatterns.forEach((p) => {
+      if (p.test(text)) urgencyMatches++;
     });
 
-    // Probability Calculation
-    let aiProbability = 0.15;
+    let credentialMatches = 0;
+    credentialPatterns.forEach((p) => {
+      if (p.test(text)) credentialMatches++;
+    });
 
-    // Low burstiness (monotonous sentence lengths) increases AI likelihood
-    if (burstinessScore < 20.0) aiProbability += 0.35;
-    else if (burstinessScore < 35.0) aiProbability += 0.2;
+    let socialEngScore = 0;
 
-    // Repetitive vocabulary (low TTR)
-    if (typeTokenRatio < 0.45) aiProbability += 0.25;
+    if (credentialMatches > 0 && urgencyMatches > 0) {
+      socialEngScore += 75;
+      signals.push({
+        type: 'credential_harvesting_urgency',
+        severity: 'high',
+        confidence: 0.92,
+        weight: 0.40,
+        description: 'Urgent account termination threat combined with password/OTP request.',
+        source: 'heuristic',
+      });
+    } else if (credentialMatches > 0) {
+      socialEngScore += 30;
+      signals.push({
+        type: 'credential_request',
+        severity: 'medium',
+        confidence: 0.70,
+        weight: 0.20,
+        description: 'Request for sensitive credential or passcode input detected.',
+        source: 'heuristic',
+      });
+    } else if (urgencyMatches > 0) {
+      socialEngScore += 20;
+      signals.push({
+        type: 'artificial_urgency',
+        severity: 'low',
+        confidence: 0.65,
+        weight: 0.10,
+        description: 'Artificial time pressure or deadline language detected.',
+        source: 'heuristic',
+      });
+    }
 
-    // Common AI transition phrases
-    if (matchedAiPhrases > 0) aiProbability += matchedAiPhrases * 0.12;
-
-    aiProbability = Math.min(0.99, parseFloat(Math.max(0.01, aiProbability).toFixed(2)));
-    const perplexityScore = parseFloat((100 - aiProbability * 80).toFixed(1));
-
-    const indicators = [];
-    if (burstinessScore < 25.0)
-      indicators.push('Low sentence length variance (monotonous burstiness metric typical of AI models).');
-    if (matchedAiPhrases > 0)
-      indicators.push(`Detected ${matchedAiPhrases} canonical AI transition phrase(s).`);
-    if (typeTokenRatio < 0.45)
-      indicators.push('Low Type-Token Ratio (constrained vocabulary entropy).');
-    if (indicators.length === 0)
-      indicators.push('Text exhibits natural human structural complexity and varied sentence rhythm.');
+    const likelihood = parseFloat((socialEngScore / 100).toFixed(2));
+    let classification = 'LOW';
+    if (likelihood >= 0.70) classification = 'CRITICAL';
+    else if (likelihood >= 0.40) classification = 'HIGH';
+    else if (likelihood >= 0.20) classification = 'MEDIUM';
 
     return {
-      aiProbability,
-      isLikelyAiGenerated: aiProbability >= 0.55,
-      perplexityScore,
-      burstinessScore,
-      indicators,
+      detected: likelihood >= 0.40,
+      likelihood,
+      confidence: 0.88,
+      classification,
+      signals,
     };
   }
 
   /**
-   * 2. Rule-Based VADER Sentiment Analysis Engine
+   * 3. Rule-Based VADER Sentiment Analysis Engine
    */
   static analyzeSentiment(text) {
     const positiveWords = new Set([
@@ -129,7 +126,7 @@ class TextService {
 
     return {
       sentiment,
-      compoundScore, // Range: -1.0 (Most Negative) to +1.0 (Most Positive)
+      compoundScore,
       positiveScore: parseFloat((posCount / (words.length || 1)).toFixed(3)),
       negativeScore: parseFloat((negCount / (words.length || 1)).toFixed(3)),
       neutralScore: parseFloat(((words.length - posCount - negCount) / (words.length || 1)).toFixed(3)),
@@ -137,14 +134,14 @@ class TextService {
   }
 
   /**
-   * 3. Fake News & Sensationalism Detector
+   * 4. Sensationalism & Fake News Detector
    */
   static detectFakeNewsProbability(text) {
     const clickbaitTriggers = [
       /\b(you won't believe|shocking|secret|miracle|doctors hate|what happened next)\b/i,
       /\b(mind-blowing|unbelievable|proof|exposed|conspiracy|hidden truth)\b/i,
-      /!{2,}/, // Multiple exclamation marks
-      /\b[A-Z]{4,}\b/, // ALL CAPS words
+      /!{2,}/,
+      /\b[A-Z]{4,}\b/,
     ];
 
     let clickbaitMatches = 0;
@@ -156,7 +153,6 @@ class TextService {
     const capWords = words.filter((w) => w === w.toUpperCase() && w.length > 3).length;
 
     let fakeNewsScore = 0.1;
-
     if (clickbaitMatches > 0) fakeNewsScore += clickbaitMatches * 0.2;
     if (capWords > 2) fakeNewsScore += 0.2;
     if (text.includes('!!!')) fakeNewsScore += 0.15;
@@ -176,7 +172,7 @@ class TextService {
   }
 
   /**
-   * 4. Cosine Similarity Algorithm (Vector Space Model)
+   * 5. Cosine Vector Similarity
    */
   static calculateTextSimilarity(textA, textB) {
     if (!textA || !textB) return 0.0;
@@ -217,6 +213,52 @@ class TextService {
   }
 
   /**
+   * 6. Independent Text Security Risk Assessment
+   * Enforces: AI_GENERATED !== MALICIOUS.
+   */
+  static evaluateTextSecurityRisk(aiAssessment, socialEngAssessment, fakeNewsResults) {
+    let riskScore = 0;
+    const reasons = [];
+    const recommendations = [];
+
+    if (socialEngAssessment.detected) {
+      riskScore += 65;
+      reasons.push('CRITICAL: Social engineering, password harvesting, or urgent financial threat language detected.');
+      recommendations.push('Do not share passwords, OTP codes, or personal information in response to this text message.');
+    }
+
+    if (fakeNewsResults.isLikelyFakeNews) {
+      riskScore += 25;
+      reasons.push('HIGH: Sensationalist clickbait and emotional manipulation triggers detected.');
+      recommendations.push('Cross-reference claims against trusted primary sources before sharing.');
+    }
+
+    // Authenticity Warning (NOT Malicious Danger)
+    if (aiAssessment.detected) {
+      riskScore += 15;
+      reasons.push('Text has high likelihood of AI generation.');
+      recommendations.push('AI-generated text is not inherently malicious. Verify factual statements independently before relying on them.');
+    }
+
+    if (reasons.length === 0) {
+      reasons.push('Zero social engineering threats or credential harvesting language detected.');
+      recommendations.push('Text meets standard communication security benchmarks.');
+    }
+
+    let riskLevel = 'LOW';
+    if (riskScore >= 65) riskLevel = 'CRITICAL';
+    else if (riskScore >= 40) riskLevel = 'HIGH';
+    else if (riskScore >= 20) riskLevel = 'MEDIUM';
+
+    return {
+      riskLevel,
+      riskScore: Math.min(100, riskScore),
+      reasons,
+      recommendations,
+    };
+  }
+
+  /**
    * Master Text Analysis Orchestrator
    */
   static async analyzeText(text, userId, benchmarkText = null) {
@@ -224,36 +266,51 @@ class TextService {
       throw new AppError('Please provide non-empty text content to analyze.', HTTP_STATUS.BAD_REQUEST);
     }
 
-    // 1. AI Detection
-    const aiResults = this.detectAiGeneratedText(text);
+    // 1. AI Generation Assessment
+    const aiAssessment = this.detectAiGeneratedText(text);
 
-    // 2. Sentiment Analysis
+    // 2. Social Engineering
+    const socialEngAssessment = this.detectSocialEngineering(text);
+
+    // 3. Sentiment Analysis
     const sentimentResults = this.analyzeSentiment(text);
 
-    // 3. Fake News Probability
+    // 4. Fake News
     const fakeNewsResults = this.detectFakeNewsProbability(text);
 
-    // 4. Similarity Check if benchmark text provided
+    // 5. Similarity
     const similarityScore = benchmarkText ? this.calculateTextSimilarity(text, benchmarkText) : null;
 
-    // Overall Trust Score Calculation (0 - 100)
+    // 6. Independent Risk Assessment
+    const riskAssessment = this.evaluateTextSecurityRisk(aiAssessment, socialEngAssessment, fakeNewsResults);
+
+    const signals = [...aiAssessment.signals, ...socialEngAssessment.signals];
+    const positiveFactors = [];
+    const negativeFactors = [];
+
+    if (!aiAssessment.detected) {
+      positiveFactors.push('Text exhibits natural human structural complexity and varied sentence rhythm.');
+    } else {
+      negativeFactors.push(`AI Generation: ${aiAssessment.classification} likelihood (${(aiAssessment.likelihood * 100).toFixed(0)}%).`);
+    }
+
+    if (socialEngAssessment.detected) {
+      negativeFactors.push(`Social Engineering Risk: ${socialEngAssessment.classification}.`);
+    } else {
+      positiveFactors.push('Zero social engineering or credential harvesting triggers.');
+    }
+
+    // Trust Score Synthesis
     let trustScore = 100.0;
-    trustScore -= aiResults.aiProbability * 35;
-    trustScore -= fakeNewsResults.fakeNewsProbability * 45;
-    if (sentimentResults.compoundScore < -0.5) trustScore -= 10;
+    trustScore -= aiAssessment.likelihood * 20;
+    trustScore -= socialEngAssessment.likelihood * 45;
+    trustScore -= fakeNewsResults.fakeNewsProbability * 20;
 
     trustScore = Math.max(0.0, Math.min(100.0, parseFloat(trustScore.toFixed(1))));
 
-    // Calculate Statistical Confidence Score (0.0 to 1.0)
     const wordCount = (text.match(/\b\w+\b/g) || []).length;
-    let confidenceScore = 0.7;
-    if (wordCount > 50) confidenceScore = 0.88;
-    if (wordCount > 150) confidenceScore = 0.96;
-
-    let riskCategory = 'low';
-    if (trustScore < 40) riskCategory = 'critical';
-    else if (trustScore < 65) riskCategory = 'high';
-    else if (trustScore < 85) riskCategory = 'medium';
+    const confidenceScore = parseFloat((aiAssessment.confidence * 0.5 + socialEngAssessment.confidence * 0.5).toFixed(2));
+    const riskCategory = riskAssessment.riskLevel.toLowerCase();
 
     // Save Analysis Document in MongoDB
     const analysisRecord = await Analysis.create({
@@ -266,15 +323,16 @@ class TextService {
       riskCategory,
       insights: [
         `Word Count: ${wordCount} words.`,
-        aiResults.isLikelyAiGenerated
-          ? `AI WARNING: High probability of AI generated text (${(aiResults.aiProbability * 100).toFixed(0)}%).`
+        aiAssessment.detected
+          ? `AI DETECTED: ${aiAssessment.classification} likelihood of AI generation (${(aiAssessment.likelihood * 100).toFixed(0)}%).`
           : 'AI CLEAN: Text exhibits human sentence structure and variance.',
-        fakeNewsResults.assessment,
-        `Sentiment: ${sentimentResults.sentiment.toUpperCase()} (Compound: ${sentimentResults.compoundScore}).`,
+        socialEngAssessment.detected
+          ? `SECURITY ALERT: Social engineering pattern detected (${socialEngAssessment.classification}).`
+          : 'SECURITY CLEAN: Zero credential harvesting patterns found.',
       ],
       graphMetadata: {
         nodeCount: wordCount,
-        edgeCount: Math.round(aiResults.burstinessScore),
+        edgeCount: Math.round(aiAssessment.likelihood * 100),
         centralityScore: trustScore / 100,
       },
     });
@@ -288,13 +346,42 @@ class TextService {
       details: { snippet: text.substring(0, 50), trustScore, riskCategory },
     });
 
+    // Auto-create Notification
+    try {
+      const NotificationService = require('./notification.service');
+      const isCritical = riskAssessment.riskLevel === 'CRITICAL' || riskAssessment.riskLevel === 'HIGH';
+      await NotificationService.createNotification({
+        userId,
+        type: isCritical ? 'CRITICAL_THREAT' : 'ANALYSIS_COMPLETE',
+        title: `Text Authenticity Scan`,
+        message: `Text scan completed. Trust Score: ${trustScore}% (${riskAssessment.riskLevel} risk). ${aiAssessment.detected ? 'AI likelihood detected.' : ''}`,
+        severity: isCritical ? 'critical' : riskAssessment.riskLevel === 'MEDIUM' ? 'warning' : 'success',
+        entityId: analysisRecord._id,
+      });
+    } catch (nErr) {
+      console.error('[TextService] Notification trigger error:', nErr.message);
+    }
+
     return {
       analysisId: analysisRecord._id,
       wordCount,
-      aiDetection: aiResults,
+      aiGenerationAssessment: aiAssessment,
+      socialEngineeringAssessment: socialEngAssessment,
+      aiDetection: {
+        aiProbability: aiAssessment.likelihood,
+        isLikelyAiGenerated: aiAssessment.detected,
+        perplexityScore: Math.round(100 - aiAssessment.likelihood * 80),
+        burstinessScore: 65.0,
+        indicators: aiAssessment.signals.map((s) => s.description),
+      },
       sentiment: sentimentResults,
       fakeNewsDetection: fakeNewsResults,
       similarityScore,
+      riskAssessment,
+      signals,
+      positiveFactors,
+      negativeFactors,
+      recommendations: riskAssessment.recommendations,
       overallTrustScore: trustScore,
       confidenceScore,
       riskCategory,

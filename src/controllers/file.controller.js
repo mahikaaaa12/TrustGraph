@@ -7,8 +7,16 @@ const { HTTP_STATUS } = require('../constants');
  */
 
 exports.uploadSingleFile = asyncHandler(async (req, res) => {
+  const fileObj = req.file || (req.files && (req.files.file?.[0] || req.files.image?.[0] || req.files[0]));
+  if (!fileObj) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      message: 'No file was uploaded. Please make sure the form field is named "file" or "image".',
+    });
+  }
+
   const host = `${req.protocol}://${req.get('host')}`;
-  const result = await FileService.processUploadedFile(req.file, req.user._id, host);
+  const result = await FileService.processUploadedFile(fileObj, req.user._id, host);
 
   res.status(result.isDuplicate ? HTTP_STATUS.OK : HTTP_STATUS.CREATED).json({
     success: true,

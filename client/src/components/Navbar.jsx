@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Search, Bell, User, CheckCircle, AlertCircle, Shield } from 'lucide-react';
+import { Search, Bell, User, CheckCircle, AlertCircle, Shield, Info } from 'lucide-react';
 
 export default function Navbar() {
   const { user } = useAuth();
@@ -10,6 +10,8 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [healthStatus, setHealthStatus] = useState('connected');
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -24,8 +26,27 @@ export default function Navbar() {
         setHealthStatus('disconnected');
       }
     };
+
+    const fetchNotifications = async () => {
+      try {
+        const res = await api.get('/notifications?limit=5');
+        if (res.data?.success) {
+          setNotifications(res.data.data.notifications || []);
+          setUnreadCount(res.data.data.unreadCount || 0);
+        }
+      } catch (err) {
+        // Silent catch
+      }
+    };
+
     checkStatus();
-    const interval = setInterval(15000, checkStatus);
+    fetchNotifications();
+
+    const interval = setInterval(() => {
+      checkStatus();
+      fetchNotifications();
+    }, 15000);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -35,7 +56,7 @@ export default function Navbar() {
     if (searchQuery.toLowerCase().includes('http')) {
       navigate(`/dashboard/website?url=${encodeURIComponent(searchQuery)}`);
     } else {
-      navigate(`/dashboard/history?q=${encodeURIComponent(searchQuery)}`);
+      navigate(`/dashboard/history?search=${encodeURIComponent(searchQuery)}`);
     }
   };
 
@@ -48,7 +69,7 @@ export default function Navbar() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search domain, URL, hash, or entity..."
+          placeholder="Search domain, entity, or analysis history..."
           className="w-full pl-10 pr-4 py-2 bg-[#F8F7F4] border border-[#E5E7EB] rounded-xl text-xs text-[#2B2B2B] placeholder-[#9CA3AF] focus:outline-none focus:border-[#8E9A7D] focus:ring-2 focus:ring-[#8E9A7D]/20 transition-all font-mono"
         />
       </form>
@@ -79,9 +100,11 @@ export default function Navbar() {
             title="Notifications"
           >
             <Bell className="w-4 h-4 stroke-[1.75]" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#D96C6C] text-white rounded-full text-[10px] font-bold flex items-center justify-center border border-white">
-              3
-            </span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#D96C6C] text-white rounded-full text-[10px] font-bold flex items-center justify-center border border-white">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
 
           {showNotifications && (
@@ -96,21 +119,35 @@ export default function Navbar() {
                   View All
                 </NavLink>
               </div>
-              <div className="space-y-2">
-                <div className="p-2.5 bg-[#F8F7F4] rounded-xl border border-[#E5E7EB] text-xs space-y-1">
-                  <span className="text-[#D96C6C] font-semibold flex items-center space-x-1">
-                    <AlertCircle className="w-3.5 h-3.5 stroke-[1.75]" />
-                    <span>Suspicious EXE Hash Uploaded</span>
-                  </span>
-                  <p className="text-[#6B7280] text-[11px]">Flagged in Document Analyzer</p>
-                </div>
-                <div className="p-2.5 bg-[#F8F7F4] rounded-xl border border-[#E5E7EB] text-xs space-y-1">
-                  <span className="text-[#5B8C5A] font-semibold flex items-center space-x-1">
-                    <CheckCircle className="w-3.5 h-3.5 stroke-[1.75]" />
-                    <span>SSL Certificate Validated</span>
-                  </span>
-                  <p className="text-[#6B7280] text-[11px]">google.com scored 98% Trust Score</p>
-                </div>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <p className="text-xs text-[#9CA3AF] text-center py-4">No notifications recorded.</p>
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n._id}
+                      className="p-2.5 bg-[#F8F7F4] rounded-xl border border-[#E5E7EB] text-xs space-y-1"
+                    >
+                      <span
+                        className={`font-semibold flex items-center space-x-1 ${
+                          n.severity === 'critical'
+                            ? 'text-[#D96C6C]'
+                            : n.severity === 'warning'
+                            ? 'text-[#D9A441]'
+                            : 'text-[#5B8C5A]'
+                        }`}
+                      >
+                        {n.severity === 'critical' ? (
+                          <AlertCircle className="w-3.5 h-3.5 stroke-[1.75]" />
+                        ) : (
+                          <CheckCircle className="w-3.5 h-3.5 stroke-[1.75]" />
+                        )}
+                        <span className="truncate">{n.title}</span>
+                      </span>
+                      <p className="text-[#6B7280] text-[11px] line-clamp-2">{n.message}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
