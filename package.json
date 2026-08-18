@@ -4,9 +4,8 @@
   "description": "Production-Ready AI-Powered Trust Graph Backend System",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest --runInBand --detectOpenHandles"
+    "start": "node src/index.js"
   },
   "keywords": [
     "trust-graph",
