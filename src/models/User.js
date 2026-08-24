@@ -34,12 +34,48 @@ const userSchema = new mongoose.Schema(
       default: 'user',
       index: true,
     },
+    avatar: {
+      type: String,
+      default: '',
+    },
     trustLevelScore: {
       type: Number,
       min: [0, 'Trust score cannot be below 0'],
       max: [100, 'Trust score cannot exceed 100'],
       default: 50.0,
     },
+    status: {
+      type: String,
+      enum: ['active', 'suspended', 'deactivated'],
+      default: 'active',
+      index: true,
+    },
+    twoFactorEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    lastLoginAt: {
+      type: Date,
+      default: Date.now,
+    },
+    lastPasswordChangeAt: {
+      type: Date,
+      default: Date.now,
+    },
+    preferences: {
+      emailNotifications: { type: Boolean, default: true },
+      securityAlerts: { type: Boolean, default: true },
+      riskAnalysisAlerts: { type: Boolean, default: true },
+      reportNotifications: { type: Boolean, default: true },
+    },
+    loginHistory: [
+      {
+        timestamp: { type: Date, default: Date.now },
+        ip: { type: String, default: '127.0.0.1' },
+        userAgent: { type: String, default: 'Browser' },
+        status: { type: String, default: 'Successful' },
+      },
+    ],
     isVerified: {
       type: Boolean,
       default: false,

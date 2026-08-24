@@ -39,6 +39,15 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
+  const updateUser = (updatedData) => {
+    setUser((prev) => (prev ? { ...prev, ...updatedData } : updatedData));
+  };
+
+  const updateToken = (newToken) => {
+    localStorage.setItem('trustgraph_token', newToken);
+    setToken(newToken);
+  };
+
   const logout = () => {
     localStorage.removeItem('trustgraph_token');
     setToken('');
@@ -46,7 +55,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, loading, login, logout }}>
+    <AuthContext.Provider value={{ token, user, loading, login, logout, updateUser, updateToken }}>
       {children}
     </AuthContext.Provider>
   );

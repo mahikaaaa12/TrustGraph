@@ -6,8 +6,7 @@ const { generateToken } = require('../utils/jwt');
 const { HTTP_STATUS } = require('../constants');
 
 /**
- * Authentication Business Logic Service Layer
- * Encapsulates database queries, password checks, token generation, and audit logging.
+ * Authentication & Account Management Service
  */
 class AuthService {
   /**
@@ -22,12 +21,22 @@ class AuthService {
       throw new AppError('An account with this email address already exists.', HTTP_STATUS.CONFLICT);
     }
 
+    const initialLogin = {
+      timestamp: new Date(),
+      ip: reqInfo.ip || '127.0.0.1',
+      userAgent: reqInfo.userAgent || 'Browser',
+      status: 'Successful',
+    };
+
     // Create user (password will be hashed via Mongoose pre-save hook)
     const newUser = await User.create({
       name,
       email,
       password,
       role: role || 'user',
+      lastLoginAt: new Date(),
+      lastPasswordChangeAt: new Date(),
+      loginHistory: [initialLogin],
     });
 
     // Generate JWT token
@@ -65,6 +74,24 @@ class AuthService {
       throw new AppError('Invalid email address or password.', HTTP_STATUS.UNAUTHORIZED);
     }
 
+    // Record login entry in history (keep latest 10)
+    const loginEntry = {
+      timestamp: new Date(),
+      ip: reqInfo.ip || '127.0.0.1',
+      userAgent: reqInfo.userAgent || 'Browser',
+      status: 'Successful',
+    };
+
+    user.lastLoginAt = new Date();
+    if (!user.loginHistory) user.loginHistory = [];
+    user.loginHistory.unshift(loginEntry);
+    if (user.loginHistory.length > 10) {
+      user.loginHistory = user.loginHistory.slice(0, 10);
+    }
+    if (typeof user.save === 'function') {
+      await user.save({ validateBeforeSave: false });
+    }
+
     // Generate JWT token
     const token = generateToken({ id: user._id, role: user.role });
 
@@ -83,6 +110,150 @@ class AuthService {
     delete userObj.password;
 
     return { user: userObj, token };
+  }
+
+  /**
+   * Updates basic profile information (Full Name, Avatar).
+   * Strict Rule: Does not allow modifying role, status, email, or ID.
+   */
+  static async updateProfile(userId, { name, avatar }) {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
+    }
+
+    if (name && typeof name === 'string' && name.trim().length > 0) {
+      user.name = name.trim().substring(0, 100);
+    }
+
+    if (typeof avatar === 'string') {
+      user.avatar = avatar.trim();
+    }
+
+    await user.save({ validateBeforeSave: false });
+
+    const userObj = user.toObject();
+    delete userObj.password;
+
+    return userObj;
+  }
+
+  /**
+   * Validates and updates user password.
+   * Enforces complexity rules and rotates token.
+   */
+  static async changePassword(userId, { currentPassword, newPassword, confirmPassword }, reqInfo = {}) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      throw new AppError('Please provide current password, new password, and confirmation.', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    if (newPassword !== confirmPassword) {
+      throw new AppError('New passwords do not match.', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Password complexity check
+    const minLength = newPassword.length >= 8;
+    const hasUpper = /[A-Z]/.test(newPassword);
+    const hasLower = /[a-z]/.test(newPassword);
+    const hasDigit = /[0-9]/.test(newPassword);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
+
+    if (!minLength || !hasUpper || !hasLower || !hasDigit || !hasSpecial) {
+      throw new AppError(
+        'Password does not meet the security requirements: Must be at least 8 characters and include uppercase, lowercase, a number, and a special character.',
+        HTTP_STATUS.BAD_REQUEST
+      );
+    }
+
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
+    }
+
+    const isCurrentValid = await user.comparePassword(currentPassword);
+    if (!isCurrentValid) {
+      throw new AppError('Current password is incorrect.', HTTP_STATUS.UNAUTHORIZED);
+    }
+
+    // Set new password (pre-save hook hashes with bcrypt salt 12)
+    user.password = newPassword;
+    user.lastPasswordChangeAt = new Date();
+    await user.save();
+
+    // Rotate token
+    const token = generateToken({ id: user._id, role: user.role });
+
+    // Log password change event in History
+    await History.create({
+      userId: user._id,
+      action: 'SETTINGS_CHANGE',
+      entityId: user._id,
+      entityType: 'User',
+      details: { message: 'Password changed successfully' },
+      ipAddress: reqInfo.ip || '0.0.0.0',
+      userAgent: reqInfo.userAgent || 'Unknown',
+    });
+
+    return {
+      message: 'Password changed successfully.',
+      token,
+      lastPasswordChangeAt: user.lastPasswordChangeAt,
+    };
+  }
+
+  /**
+   * Updates notification and alert preferences.
+   */
+  static async updatePreferences(userId, newPreferences = {}) {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
+    }
+
+    user.preferences = {
+      ...user.preferences,
+      ...newPreferences,
+    };
+
+    await user.save({ validateBeforeSave: false });
+
+    return user.preferences;
+  }
+
+  /**
+   * Retrieves recent login history for user.
+   */
+  static async getLoginActivity(userId) {
+    const user = await User.findById(userId).select('loginHistory createdAt');
+    if (!user) {
+      throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
+    }
+
+    const history = user.loginHistory || [];
+    return history;
+  }
+
+  /**
+   * Deletes user account upon password confirmation.
+   */
+  static async deleteAccount(userId, { password }, reqInfo = {}) {
+    if (!password) {
+      throw new AppError('Password confirmation is required to delete your account.', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      throw new AppError('Password confirmation failed: Incorrect password.', HTTP_STATUS.UNAUTHORIZED);
+    }
+
+    await User.findByIdAndDelete(userId);
+
+    return { message: 'User account and all associated profile records have been permanently deleted.' };
   }
 
   /**
@@ -131,6 +302,7 @@ class AuthService {
 
     // Update password (triggers pre-save hashing hook)
     user.password = newPassword;
+    user.lastPasswordChangeAt = new Date();
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();

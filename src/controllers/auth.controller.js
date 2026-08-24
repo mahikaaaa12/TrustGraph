@@ -1,10 +1,6 @@
 const AuthService = require('../services/auth.service');
 const asyncHandler = require('../utils/asyncHandler');
-const { HTTP_STATUS, RESPONSE_MESSAGES } = require('../constants');
-
-/**
- * Auth Controller Handling HTTP Requests & Standardized Responses
- */
+const { HTTP_STATUS } = require('../constants');
 
 exports.signup = asyncHandler(async (req, res) => {
   const reqInfo = { ip: req.ip, userAgent: req.get('User-Agent') };
@@ -28,6 +24,67 @@ exports.login = asyncHandler(async (req, res) => {
   });
 });
 
+exports.getMe = asyncHandler(async (req, res) => {
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    data: { user: req.user },
+  });
+});
+
+exports.updateProfile = asyncHandler(async (req, res) => {
+  const updatedUser = await AuthService.updateProfile(req.user._id, req.body);
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'Profile information updated successfully.',
+    data: { user: updatedUser },
+  });
+});
+
+exports.changePassword = asyncHandler(async (req, res) => {
+  const reqInfo = { ip: req.ip, userAgent: req.get('User-Agent') };
+  const result = await AuthService.changePassword(req.user._id, req.body, reqInfo);
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: result.message,
+    data: {
+      token: result.token,
+      lastPasswordChangeAt: result.lastPasswordChangeAt,
+    },
+  });
+});
+
+exports.updatePreferences = asyncHandler(async (req, res) => {
+  const preferences = await AuthService.updatePreferences(req.user._id, req.body);
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'Account preferences updated.',
+    data: { preferences },
+  });
+});
+
+exports.getLoginActivity = asyncHandler(async (req, res) => {
+  const history = await AuthService.getLoginActivity(req.user._id);
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'Login activity history retrieved.',
+    data: { activity: history },
+  });
+});
+
+exports.deleteAccount = asyncHandler(async (req, res) => {
+  const reqInfo = { ip: req.ip, userAgent: req.get('User-Agent') };
+  const result = await AuthService.deleteAccount(req.user._id, req.body, reqInfo);
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: result.message,
+  });
+});
+
 exports.forgotPassword = asyncHandler(async (req, res) => {
   const { resetToken, email } = await AuthService.forgotPassword(req.body.email);
 
@@ -36,7 +93,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
     message: 'Password reset token generated.',
     data: {
       email,
-      resetToken, // In production, this token is sent via Email service (Nodemailer/SendGrid)
+      resetToken,
       instructions: 'Use this reset token within 10 minutes to reset your password.',
     },
   });
@@ -52,12 +109,5 @@ exports.resetPassword = asyncHandler(async (req, res) => {
     success: true,
     message: result.message,
     data: { token: result.token },
-  });
-});
-
-exports.getMe = asyncHandler(async (req, res) => {
-  res.status(HTTP_STATUS.OK).json({
-    success: true,
-    data: { user: req.user },
   });
 });

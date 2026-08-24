@@ -90,6 +90,7 @@ function createApp() {
   const prefixes = [DEFAULT_CONFIG.API_PREFIX, '/api'];
   prefixes.forEach((prefix) => {
     app.use(`${prefix}/auth`, authRoutes);
+    app.use(`${prefix}/users`, authRoutes);
     app.use(`${prefix}/files`, fileRoutes);
     app.use(`${prefix}/documents`, documentRoutes);
     app.use(`${prefix}/images`, imageRoutes);
