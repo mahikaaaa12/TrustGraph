@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -11,13 +11,29 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
-    email: 'sarah@cyberdyne.org',
-    password: 'Password123!',
-    rememberMe: true,
+    email: '',
+    password: '',
+    rememberMe: false,
   });
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+
+  // Restore remembered email securely if previously saved by user (never password)
+  useEffect(() => {
+    try {
+      const rememberedEmail = localStorage.getItem('trustgraph_remembered_email');
+      if (rememberedEmail) {
+        setForm((prev) => ({
+          ...prev,
+          email: rememberedEmail,
+          rememberMe: true,
+        }));
+      }
+    } catch (e) {
+      // Ignore localStorage access issues
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,14 +47,22 @@ export default function LoginPage() {
       });
 
       if (res.data?.success) {
+        if (form.rememberMe && form.email) {
+          localStorage.setItem('trustgraph_remembered_email', form.email);
+        } else {
+          localStorage.removeItem('trustgraph_remembered_email');
+        }
+
         login(res.data.data.token, res.data.data.user);
         showToast('Login successful! Welcome to TrustGraph.', 'success');
         navigate('/dashboard');
       }
     } catch (err) {
-      let userFriendlyMsg = 'Invalid email or password.';
+      let userFriendlyMsg = 'Invalid email address or password.';
       if (err.status === 'NETWORK_ERROR' || err.message?.includes('Network Error')) {
         userFriendlyMsg = 'Unable to connect to TrustGraph server. Please verify backend URL & network status.';
+      } else if (err.response?.data?.message) {
+        userFriendlyMsg = err.response.data.message;
       } else if (err.status === 401) {
         userFriendlyMsg = 'Invalid email address or password.';
       } else if (err.status === 403) {
@@ -109,7 +133,7 @@ export default function LoginPage() {
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="analyst@enterprise.com"
+                  placeholder="Enter your email address"
                   className="w-full pl-10 pr-4 py-3 bg-[#F8F7F4] border border-[#E5E7EB] rounded-xl text-xs text-[#2B2B2B] focus:outline-none focus:border-[#8E9A7D]"
                   required
                 />
@@ -124,7 +148,7 @@ export default function LoginPage() {
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="••••••••••••"
+                  placeholder="Enter your password"
                   className="w-full pl-10 pr-4 py-3 bg-[#F8F7F4] border border-[#E5E7EB] rounded-xl text-xs text-[#2B2B2B] focus:outline-none focus:border-[#8E9A7D]"
                   required
                 />

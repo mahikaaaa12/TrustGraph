@@ -12,16 +12,16 @@ export default function AuthPage() {
 
   // Signup State
   const [signupForm, setSignupForm] = useState({
-    name: 'Sarah Connor',
-    email: 'sarah@cyberdyne.org',
-    password: 'Password123!',
+    name: '',
+    email: '',
+    password: '',
     role: 'analyst',
   });
 
   // Login State
   const [loginForm, setLoginForm] = useState({
-    email: 'sarah@cyberdyne.org',
-    password: 'Password123!',
+    email: '',
+    password: '',
   });
 
   const [loading, setLoading] = useState(false);
