@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -107,12 +108,30 @@ function createApp() {
     app.use(`${prefix}/model-monitor`, modelMonitorRoutes);
   });
 
-  // 8. Global 404 Unhandled Route Middleware (Passes AppError to next)
+  // 8. Production Static Frontend Assets & Clean SPA Fallback
+  const clientDistPath = path.resolve(__dirname, '../client/dist');
+  if (fs.existsSync(clientDistPath)) {
+    app.use(express.static(clientDistPath));
+
+    // Fallback GET requests to React index.html strictly for non-API frontend navigation
+    app.get('*', (req, res, next) => {
+      if (
+        req.originalUrl.startsWith('/api') ||
+        req.originalUrl.startsWith('/health') ||
+        req.originalUrl.startsWith('/docs')
+      ) {
+        return next();
+      }
+      res.sendFile(path.join(clientDistPath, 'index.html'));
+    });
+  }
+
+  // 9. Global 404 Unhandled Route Middleware (For unhandled API and server routes)
   app.use((req, res, next) => {
     next(new AppError(`${RESPONSE_MESSAGES.NOT_FOUND} Path: ${req.originalUrl}`, HTTP_STATUS.NOT_FOUND));
   });
 
-  // 9. Centralized Operational Error Handler Middleware
+  // 10. Centralized Operational Error Handler Middleware
   app.use(globalErrorHandler);
 
   return app;
