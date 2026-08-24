@@ -21,6 +21,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Home,
+  Zap,
+  Share2,
 } from 'lucide-react';
 
 export default function Sidebar({ isCollapsed, toggleSidebar }) {
@@ -47,6 +49,8 @@ export default function Sidebar({ isCollapsed, toggleSidebar }) {
       title: 'INTELLIGENCE',
       items: [
         { name: 'Trust Score Engine', path: '/dashboard/trust-score', icon: Award },
+        { name: 'Abuse Ring Inspector', path: '/dashboard/investigation', icon: Share2 },
+        { name: 'Risk Simulator', path: '/dashboard/simulator', icon: Zap },
         { name: 'Audit History', path: '/dashboard/history', icon: Clock },
         { name: 'Executive Reports', path: '/dashboard/reports', icon: FileSpreadsheet },
       ],

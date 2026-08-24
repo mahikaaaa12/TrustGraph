@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "test": "jest --detectOpenHandles --forceExit"
+    "test": "jest --detectOpenHandles --forceExit",
+    "ml:train": "node -e \"const r = require('./src/ml/trainPipeline').runPipeline(); console.log('Training complete! Winner:', r.report.winner);\""
   },
   "keywords": [
     "trust-graph",
@@ -31,7 +32,7 @@
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "pdf-parse": "^1.1.4",
-    "sharp": "^0.33.5",
+    "sharp": "^0.35.3",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.19.0"

@@ -43,10 +43,10 @@ export default function LandingPage() {
   ];
 
   const stats = [
-    { value: '99.9%', label: 'AI Detection Accuracy' },
-    { value: '1M+', label: 'Artifacts Evaluated' },
-    { value: '1.2s', label: 'Average Response Time' },
-    { value: '0', label: 'False Positives in Production' },
+    { value: '4', label: 'Forensic Modalities' },
+    { value: '100%', label: 'Explainable Attribution' },
+    { value: '<100ms', label: 'Local ML Inference' },
+    { value: '0', label: 'Vendor Lock-in' },
   ];
 
   const faqs = [
@@ -159,18 +159,18 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Customer Logos */}
+      {/* Core Architectural Pillars */}
       <section className="py-12 border-y border-[#E5E7EB] bg-white">
         <div className="max-w-7xl mx-auto px-6 text-center space-y-6">
           <p className="text-xs font-semibold text-[#9CA3AF] uppercase tracking-widest">
-            Trusted by Cybersecurity Analysts & Enterprises Worldwide
+            Multi-Modal Forensic Intelligence Architecture
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-16 opacity-60 font-black text-[#6B7280] text-base">
-            <span>MICROSOFT</span>
-            <span>CROWDSTRIKE</span>
-            <span>PALO ALTO</span>
-            <span>DARKTRACE</span>
-            <span>CLOUDFLARE</span>
+          <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-12 opacity-80 font-mono font-bold text-[#6B7280] text-xs">
+            <span className="px-3 py-1.5 rounded-lg bg-[#F8F7F4] border border-[#E5E7EB]">IMAGE ELA FORENSICS</span>
+            <span className="px-3 py-1.5 rounded-lg bg-[#F8F7F4] border border-[#E5E7EB]">DOCUMENT PII LEAKS</span>
+            <span className="px-3 py-1.5 rounded-lg bg-[#F8F7F4] border border-[#E5E7EB]">DOMAIN REPUTATION</span>
+            <span className="px-3 py-1.5 rounded-lg bg-[#F8F7F4] border border-[#E5E7EB]">TEXT PROVENANCE</span>
+            <span className="px-3 py-1.5 rounded-lg bg-[#F8F7F4] border border-[#E5E7EB]">GRAPH ABUSE RINGS</span>
           </div>
         </div>
       </section>

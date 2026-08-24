@@ -1,0 +1,62 @@
+[
+  {
+    "id": "bench_001",
+    "description": "Legitimate verified corporate PDF with clean metadata",
+    "inputs": { "authenticityScore": 95, "securityScore": 90, "metadataScore": 88, "reputationScore": 92, "piiLeaks": 0, "phishingLikelihood": 0, "imageTampered": false, "aiLikelihood": 0.05, "suspiciousDomain": false, "socialEngLikelihood": 0.0 },
+    "actualFraud": 0
+  },
+  {
+    "id": "bench_002",
+    "description": "Phishing domain with raw IP and credential harvesting form",
+    "inputs": { "authenticityScore": 30, "securityScore": 25, "metadataScore": 40, "reputationScore": 20, "piiLeaks": 2, "phishingLikelihood": 0.85, "imageTampered": false, "aiLikelihood": 0.1, "suspiciousDomain": true, "socialEngLikelihood": 0.9 },
+    "actualFraud": 1
+  },
+  {
+    "id": "bench_003",
+    "description": "Authentic organic blog post with natural sentence burstiness",
+    "inputs": { "authenticityScore": 90, "securityScore": 85, "metadataScore": 80, "reputationScore": 85, "piiLeaks": 0, "phishingLikelihood": 0, "imageTampered": false, "aiLikelihood": 0.12, "suspiciousDomain": false, "socialEngLikelihood": 0.05 },
+    "actualFraud": 0
+  },
+  {
+    "id": "bench_004",
+    "description": "Critical credential leak document with live API keys and SSNs",
+    "inputs": { "authenticityScore": 45, "securityScore": 15, "metadataScore": 50, "reputationScore": 40, "piiLeaks": 6, "phishingLikelihood": 0.4, "imageTampered": false, "aiLikelihood": 0.2, "suspiciousDomain": false, "socialEngLikelihood": 0.3 },
+    "actualFraud": 1
+  },
+  {
+    "id": "bench_005",
+    "description": "Camera photo with complete camera EXIF sensor hardware tags",
+    "inputs": { "authenticityScore": 92, "securityScore": 88, "metadataScore": 95, "reputationScore": 90, "piiLeaks": 0, "phishingLikelihood": 0, "imageTampered": false, "aiLikelihood": 0.05, "suspiciousDomain": false, "socialEngLikelihood": 0.0 },
+    "actualFraud": 0
+  },
+  {
+    "id": "bench_006",
+    "description": "Photoshop spliced document with ELA anomalies and embedded script",
+    "inputs": { "authenticityScore": 25, "securityScore": 30, "metadataScore": 20, "reputationScore": 35, "piiLeaks": 1, "phishingLikelihood": 0.6, "imageTampered": true, "aiLikelihood": 0.3, "suspiciousDomain": false, "socialEngLikelihood": 0.5 },
+    "actualFraud": 1
+  },
+  {
+    "id": "bench_007",
+    "description": "Standard HTTPS domain with valid Let's Encrypt certificate",
+    "inputs": { "authenticityScore": 85, "securityScore": 95, "metadataScore": 78, "reputationScore": 88, "piiLeaks": 0, "phishingLikelihood": 0.05, "imageTampered": false, "aiLikelihood": 0.0, "suspiciousDomain": false, "socialEngLikelihood": 0.0 },
+    "actualFraud": 0
+  },
+  {
+    "id": "bench_008",
+    "description": "Urgent financial blackmail email demanding cryptocurrency",
+    "inputs": { "authenticityScore": 35, "securityScore": 20, "metadataScore": 45, "reputationScore": 15, "piiLeaks": 0, "phishingLikelihood": 0.75, "imageTampered": false, "aiLikelihood": 0.4, "suspiciousDomain": false, "socialEngLikelihood": 0.95 },
+    "actualFraud": 1
+  },
+  {
+    "id": "bench_009",
+    "description": "AI-generated synthetic marketing text without malicious payloads",
+    "inputs": { "authenticityScore": 60, "securityScore": 85, "metadataScore": 70, "reputationScore": 80, "piiLeaks": 0, "phishingLikelihood": 0.0, "imageTampered": false, "aiLikelihood": 0.95, "suspiciousDomain": false, "socialEngLikelihood": 0.05 },
+    "actualFraud": 0
+  },
+  {
+    "id": "bench_010",
+    "description": "High-velocity account takeover with abnormal transaction amount",
+    "inputs": { "authenticityScore": 20, "securityScore": 10, "metadataScore": 30, "reputationScore": 10, "piiLeaks": 4, "phishingLikelihood": 0.9, "imageTampered": false, "aiLikelihood": 0.2, "suspiciousDomain": true, "socialEngLikelihood": 0.85, "amount": 25000, "velocity": 18 },
+    "actualFraud": 1
+  }
+]

@@ -78,20 +78,20 @@ export default function SignupPage() {
 
         <div className="space-y-6 relative z-10 max-w-lg">
           <h1 className="text-4xl font-extrabold text-[#2B2B2B] leading-tight">
-            Join Enterprise Security Teams Worldwide
+            Multi-Modal Risk Analysis & Forensics Engine
           </h1>
           <div className="space-y-3 text-xs text-[#6B7280]">
             <div className="flex items-center space-x-3">
               <CheckCircle className="text-[#5B8C5A] w-4 h-4 stroke-[1.75]" />
-              <span>Multi-modal AI evaluation across PDF, DOCX, and image files</span>
+              <span>Multi-modal risk evaluation across PDF, DOCX, and image files</span>
             </div>
             <div className="flex items-center space-x-3">
               <CheckCircle className="text-[#5B8C5A] w-4 h-4 stroke-[1.75]" />
-              <span>Real-time SSL certificate and WHOIS threat blacklists</span>
+              <span>Real-time SSL certificate telemetry and heuristic phishing risk</span>
             </div>
             <div className="flex items-center space-x-3">
               <CheckCircle className="text-[#5B8C5A] w-4 h-4 stroke-[1.75]" />
-              <span>Executive compliance report exports with SOC2 metrics</span>
+              <span>Forensic audit report exports with explainable feature attribution</span>
             </div>
           </div>
         </div>

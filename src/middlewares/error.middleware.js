@@ -15,21 +15,31 @@ const globalErrorHandler = (err, req, res, next) => {
     user: req.user?._id || 'Unauthenticated',
   });
 
+  // Sanitize message to ensure no connection strings or credentials leak
+  let sanitizedMessage = err.message || RESPONSE_MESSAGES.SERVER_ERROR;
+  sanitizedMessage = sanitizedMessage.replace(/mongodb(\+srv)?:\/\/[^@]+@/gi, 'mongodb://[REDACTED_CREDENTIALS]@');
+
+  // Specific database error classification
+  if (err.name === 'MongooseServerSelectionError' || err.name === 'MongoNetworkError' || err.name === 'MongoTimeoutError') {
+    err.statusCode = HTTP_STATUS.SERVICE_UNAVAILABLE;
+    sanitizedMessage = 'Database service temporarily unavailable. Operational in resilient memory fallback mode.';
+  }
+
   if (process.env.NODE_ENV === NODE_ENV.DEVELOPMENT) {
     res.status(err.statusCode).json({
       success: false,
       status: err.status,
-      error: err,
-      message: err.message,
-      stack: err.stack,
+      message: sanitizedMessage,
+      errorName: err.name,
+      isOperational: Boolean(err.isOperational),
     });
   } else {
-    // Production Mode: Hide internal stack details for non-operational errors
-    if (err.isOperational) {
+    // Production Mode: Hide internal stack details
+    if (err.isOperational || err.statusCode < 500) {
       res.status(err.statusCode).json({
         success: false,
         status: err.status,
-        message: err.message,
+        message: sanitizedMessage,
       });
     } else {
       res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
@@ -42,3 +52,4 @@ const globalErrorHandler = (err, req, res, next) => {
 };
 
 module.exports = globalErrorHandler;
+

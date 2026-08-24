@@ -1,5 +1,40 @@
+# Environments and Secrets
 .env
 .env.*
 !.env.example
+client/.env
+client/.env.*
+!client/.env.example
+*.pem
+*.key
+*.cert
+
+# Dependencies
 node_modules/
+package-lock.json.bak
+
+# Uploads & Media (Preserve directory structure via .gitkeep)
+src/uploads/*
+!src/uploads/.gitkeep
+
+# System & Logs
 logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+
+# Test Coverage & Build Outputs
+coverage/
+.nyc_output/
+dist/
+client/dist/
+
+# Large Datasets & Temporary ML Checkpoints
+*.csv
+*.tsv
+*.parquet
+*.pkl
+src/ml/artifacts/data_cache/

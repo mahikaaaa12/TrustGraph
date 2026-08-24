@@ -2,20 +2,21 @@ const Analysis = require('../models/Analysis');
 const History = require('../models/History');
 const AppError = require('../utils/appError');
 const { HTTP_STATUS } = require('../constants');
+const { defaultFraudModel } = require('../ml/fraudModel');
+const GraphAnalysisService = require('./graphAnalysis.service');
+const ExplainabilityService = require('./explainability.service');
+const LossCalculatorService = require('./lossCalculator.service');
+const PolicyEngineService = require('./policyEngine.service');
+const { defaultMlCircuitBreaker } = require('../utils/circuitBreaker');
+const { defaultModelMonitor } = require('./modelMonitor.service');
+const { metricsCollector } = require('../middlewares/metrics.middleware');
 
 /**
  * Production-Ready Multi-Modal Trust Score Engine Service
- * Synthesizes Image, Document, Website, and Text telemetry scores into a unified Trust Index.
+ * Synthesizes Image, Document, Website, and Text telemetry scores into a unified Trust Index
+ * backed by calibrated Machine Learning inference, Graph Abuse-Ring detection, and Explainable Attributions.
  */
 class TrustScoreService {
-  /**
-   * Weights assigned to each domain modality based on enterprise risk impact.
-   * Documented Weights:
-   * - Authenticity: 35% (Image ELA/EXIF & Text Perplexity/Burstiness)
-   * - Security: 25% (Website TLS/SSL & Document PII Leaks)
-   * - Metadata: 20% (EXIF hardware tags & PDF/Document Headers)
-   * - Reputation: 20% (Domain Blacklists & Clickbait Sensationalism)
-   */
   static WEIGHTS = Object.freeze({
     authenticity: 0.35,
     security: 0.25,
@@ -23,17 +24,11 @@ class TrustScoreService {
     reputation: 0.20,
   });
 
-  /**
-   * Normalizes a raw input score to strictly abide by the 0.0 - 100.0 bound.
-   */
   static normalizeScore(val) {
     if (val === undefined || val === null || isNaN(val)) return null;
     return Math.max(0.0, Math.min(100.0, parseFloat(val)));
   }
 
-  /**
-   * Calculates overall System Confidence Score (0.0 to 1.0)
-   */
   static calculateConfidence(scores) {
     const validScores = Object.values(scores).filter((v) => v !== null && v !== undefined);
     if (validScores.length === 0) return 0.0;
@@ -49,10 +44,19 @@ class TrustScoreService {
   }
 
   /**
-   * Master Multi-Modal Trust Score Synthesizer
+   * Master Multi-Modal Trust Score Synthesizer with ML & Graph Defense
    */
   static async evaluateTrustScore(inputs, userId) {
-    const { imageScore, documentScore, websiteScore, textScore } = inputs;
+    const {
+      imageScore,
+      documentScore,
+      websiteScore,
+      textScore,
+      amount = 0,
+      velocity = 1,
+      graphTopology = null,
+      customPolicies = null,
+    } = inputs;
 
     const normImage = this.normalizeScore(imageScore);
     const normDoc = this.normalizeScore(documentScore);
@@ -121,7 +125,7 @@ class TrustScoreService {
       },
     };
 
-    const overallTrustScore = parseFloat(
+    const heuristicTrustScore = parseFloat(
       (
         dimensions.authenticity.contribution +
         dimensions.security.contribution +
@@ -132,10 +136,77 @@ class TrustScoreService {
 
     const confidenceScore = this.calculateConfidence(inputScores);
 
-    let riskCategory = 'low';
-    if (overallTrustScore < 40) riskCategory = 'critical';
-    else if (overallTrustScore < 65) riskCategory = 'high';
-    else if (overallTrustScore < 85) riskCategory = 'medium';
+    // 1. Execute ML Fraud & Risk Model Prediction with Circuit Breaker
+    const mlRawInputs = {
+      authenticityScore: breakdown.authenticityIndex,
+      securityScore: breakdown.securityEncryption,
+      metadataScore: breakdown.metadataProvenance,
+      reputationScore: breakdown.sourceReputation,
+      amount: Number(amount) || 0,
+      velocity: Number(velocity) || 1,
+      piiLeaks: normDoc !== null && normDoc < 60 ? 2 : 0,
+      phishingLikelihood: normWeb !== null && normWeb < 60 ? (100 - normWeb) / 100 : 0,
+      imageTampered: normImage !== null && normImage < 50,
+      aiLikelihood: normText !== null && normText < 65 ? (100 - normText) / 100 : 0,
+      suspiciousDomain: normWeb !== null && normWeb < 55,
+      socialEngLikelihood: normText !== null && normText < 50 ? (100 - normText) / 100 : 0,
+    };
+
+    const mlExecution = await defaultMlCircuitBreaker.execute(
+      () => defaultFraudModel.predict(mlRawInputs),
+      () => ({
+        modelVersion: 'fallback-heuristic-v1',
+        fraudProbability: parseFloat(((100 - heuristicTrustScore) / 100).toFixed(4)),
+        trustScore: heuristicTrustScore,
+        riskTier: heuristicTrustScore < 40 ? 'CRITICAL' : heuristicTrustScore < 65 ? 'HIGH' : heuristicTrustScore < 85 ? 'MEDIUM' : 'LOW',
+        featureContributions: [],
+      })
+    );
+
+    const mlPrediction = mlExecution;
+    defaultModelMonitor.recordEvent(mlPrediction, mlRawInputs);
+
+    // 2. Execute Graph-Based Abuse-Ring Analysis
+    const graphAnalysis = GraphAnalysisService.analyzeAbuseRings(
+      graphTopology || {
+        nodes: [
+          { id: 'user_node', label: 'Evaluated Target', type: 'user', risk: mlPrediction.riskTier },
+          { id: 'sec_node', label: 'Security Domain', type: 'security', risk: dimensions.security.score < 60 ? 'high' : 'low' },
+          { id: 'meta_node', label: 'Metadata Provenance', type: 'metadata', risk: dimensions.metadata.score < 60 ? 'high' : 'low' },
+        ],
+        edges: [
+          { source: 'user_node', target: 'sec_node', type: 'EVALUATES', weight: 1 },
+          { source: 'user_node', target: 'meta_node', type: 'PARSES', weight: 1 },
+        ],
+      }
+    );
+
+    // 3. Execute Explainability Engine
+    const explainability = ExplainabilityService.generateExplanation(mlPrediction, mlRawInputs);
+
+    // 4. Execute Cost-Sensitive Loss Calculation
+    const expectedLoss = LossCalculatorService.calculateExpectedLoss(
+      mlPrediction.fraudProbability,
+      Number(amount) || 0
+    );
+
+    // 5. Execute Deterministic Policy Engine
+    const policyEvaluation = PolicyEngineService.evaluatePolicies(
+      {
+        ...mlRawInputs,
+        trustScore: mlPrediction.trustScore,
+        fraudProbability: mlPrediction.fraudProbability,
+        ringCycleCount: graphAnalysis.cycleCount || 0,
+        ringRiskScore: graphAnalysis.ringRiskScore || 0,
+      },
+      customPolicies
+    );
+
+    // Composite Final Trust Score & Risk Category
+    const overallTrustScore = mlPrediction.trustScore !== undefined ? mlPrediction.trustScore : heuristicTrustScore;
+    let riskCategory = mlPrediction.riskTier ? mlPrediction.riskTier.toLowerCase() : 'low';
+
+    metricsCollector.recordModelEvaluation(riskCategory.toUpperCase(), expectedLoss.expectedLossUSD);
 
     const positiveFactors = [];
     const negativeFactors = [];
@@ -155,16 +226,15 @@ class TrustScoreService {
 
     evidence.push(`Evaluated ${providedScores.length} of 4 input modalities.`);
     evidence.push(`Variance-adjusted statistical confidence: ${(confidenceScore * 100).toFixed(0)}%.`);
+    evidence.push(`Calibrated ML Model Version: ${mlPrediction.modelVersion}.`);
 
     const insights = [
-      `Overall Multi-Modal Trust Index: ${overallTrustScore} / 100.`,
-      `Evaluated across ${providedScores.length} active input modality channel(s).`,
-      breakdown.authenticityIndex < 60
-        ? 'AUTHENTICITY WARNING: High probability of synthetic alteration or AI generation.'
-        : 'AUTHENTICITY VERIFIED: Content exhibits organic human creation characteristics.',
-      breakdown.securityEncryption < 60
-        ? 'SECURITY ALERT: Potential encryption flaw or sensitive PII data exposure detected.'
-        : 'SECURITY CLEAN: Infrastructure and encryption parameters meet safety benchmarks.',
+      `Overall Composite Trust Index: ${overallTrustScore} / 100 (${riskCategory.toUpperCase()} risk profile).`,
+      `ML Fraud Probability: ${(mlPrediction.fraudProbability * 100).toFixed(1)}% [Decision Tier: ${mlPrediction.riskTier}].`,
+      `Policy Engine Action: ${policyEvaluation.decision}${policyEvaluation.triggeredPolicy ? ` (Triggered by ${policyEvaluation.triggeredPolicy.name})` : ''}.`,
+      graphAnalysis.detected
+        ? `ABUSE RING ALERT: Graph topology detected ${graphAnalysis.cycleCount} collusion cycles.`
+        : 'GRAPH CLEAN: No circular collusion cycles detected in entity topology.',
     ];
 
     const analysisRecord = await Analysis.create({
@@ -177,10 +247,31 @@ class TrustScoreService {
       riskCategory,
       insights,
       graphMetadata: {
-        nodeCount: providedScores.length,
-        edgeCount: Object.keys(breakdown).length,
+        nodeCount: graphAnalysis.nodeCount || providedScores.length,
+        edgeCount: graphAnalysis.edgeCount || Object.keys(breakdown).length,
         centralityScore: overallTrustScore / 100,
       },
+      mlPrediction: {
+        fraudProbability: mlPrediction.fraudProbability,
+        riskTier: mlPrediction.riskTier,
+        modelVersion: mlPrediction.modelVersion,
+        rawLogit: mlPrediction.rawLogit,
+        isFallback: mlExecution.isFallback,
+      },
+      expectedLoss,
+      policyEvaluation,
+      abuseRingAnalysis: {
+        detected: graphAnalysis.detected,
+        ringRiskScore: graphAnalysis.ringRiskScore,
+        cycleCount: graphAnalysis.cycleCount,
+      },
+      explainability: {
+        summary: explainability.summary,
+        topRiskDrivers: explainability.topRiskDrivers,
+        protectiveFactors: explainability.protectiveFactors,
+        counterfactuals: explainability.counterfactuals,
+      },
+      modelVersion: mlPrediction.modelVersion,
     });
 
     await History.create({
@@ -192,6 +283,8 @@ class TrustScoreService {
         overallTrustScore,
         confidenceScore,
         riskCategory,
+        fraudProbability: mlPrediction.fraudProbability,
+        modelVersion: mlPrediction.modelVersion,
       },
     });
 
@@ -199,9 +292,9 @@ class TrustScoreService {
       const NotificationService = require('./notification.service');
       await NotificationService.createNotification({
         userId,
-        type: 'ANALYSIS_COMPLETE',
+        type: riskCategory === 'critical' ? 'CRITICAL_THREAT' : 'ANALYSIS_COMPLETE',
         title: `Multi-Modal Trust Score Evaluation`,
-        message: `Composite Trust Score computed: ${overallTrustScore}% (${riskCategory.toUpperCase()} risk profile). Confidence: ${(confidenceScore * 100).toFixed(0)}%.`,
+        message: `Composite Trust Score computed: ${overallTrustScore}% (${riskCategory.toUpperCase()} risk profile). ML Fraud Probability: ${(mlPrediction.fraudProbability * 100).toFixed(1)}%.`,
         severity: riskCategory === 'critical' ? 'critical' : riskCategory === 'high' ? 'warning' : 'success',
         entityId: analysisRecord._id,
       });
@@ -227,8 +320,20 @@ class TrustScoreService {
       breakdown,
       inputScores,
       insights,
+      mlModelOutput: {
+        modelVersion: mlPrediction.modelVersion,
+        fraudProbability: mlPrediction.fraudProbability,
+        riskTier: mlPrediction.riskTier,
+        isFallback: mlExecution.isFallback,
+        featureContributions: mlPrediction.featureContributions || [],
+      },
+      graphAbuseRingOutput: graphAnalysis,
+      explainabilityOutput: explainability,
+      expectedLossOutput: expectedLoss,
+      policyEngineOutput: policyEvaluation,
     };
   }
 }
 
 module.exports = TrustScoreService;
+

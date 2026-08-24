@@ -1,14 +1,18 @@
 const mongoose = require('mongoose');
 
 /**
- * Report Schema definition for generated TrustGraph analysis summaries.
+ * Report Schema definition for generated TrustGraph audit and risk reports.
  */
 const reportSchema = new mongoose.Schema(
   {
+    reportId: {
+      type: String,
+      index: true,
+    },
     analysisId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Analysis',
-      required: [true, 'Report must link to an Analysis record'],
+      required: false,
       index: true,
     },
     userId: {
@@ -22,26 +26,76 @@ const reportSchema = new mongoose.Schema(
       required: [true, 'Report title is required'],
       trim: true,
     },
+    analysisType: {
+      type: String,
+      enum: ['document', 'image', 'website', 'text', 'trust_score', 'transaction', 'system'],
+      default: 'trust_score',
+      index: true,
+    },
+    riskScore: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 15,
+    },
+    fraudProbability: {
+      type: Number,
+      min: 0,
+      max: 1,
+      default: 0.15,
+    },
+    decision: {
+      type: String,
+      enum: ['ALLOW', 'REVIEW', 'BLOCK'],
+      default: 'ALLOW',
+      index: true,
+    },
+    riskCategory: {
+      type: String,
+      enum: ['low', 'medium', 'high', 'critical'],
+      default: 'low',
+      index: true,
+    },
+    expectedLoss: {
+      type: Number,
+      default: 0.0,
+    },
+    modelVersion: {
+      type: String,
+      default: 'gbdt-risk-v1.0.0',
+      index: true,
+    },
+    policyVersion: {
+      type: String,
+      default: 'policies-v1.2.0',
+    },
     summary: {
       type: String,
       required: [true, 'Report executive summary is required'],
     },
-    pdfUrl: {
+    targetEntity: {
       type: String,
-      default: null,
+      default: 'System Audit',
+    },
+    topRiskFactors: {
+      type: Array,
+      default: [],
+    },
+    graphSignals: {
+      type: Array,
+      default: [],
+    },
+    recommendations: {
+      type: [String],
+      default: [],
     },
     exportFormat: {
       type: String,
-      enum: ['json', 'pdf', 'csv'],
+      enum: ['json', 'csv', 'pdf'],
       default: 'json',
     },
-    downloadCount: {
-      type: Number,
-      default: 0,
-    },
     metadata: {
-      type: Map,
-      of: String,
+      type: mongoose.Schema.Types.Mixed,
       default: {},
     },
   },
@@ -50,6 +104,10 @@ const reportSchema = new mongoose.Schema(
   }
 );
 
+// Compound indexes for fast filtered queries and pagination
 reportSchema.index({ userId: 1, createdAt: -1 });
+reportSchema.index({ userId: 1, decision: 1, createdAt: -1 });
+reportSchema.index({ userId: 1, riskCategory: 1, createdAt: -1 });
+reportSchema.index({ userId: 1, analysisType: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Report', reportSchema);

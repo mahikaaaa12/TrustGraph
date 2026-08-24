@@ -1,0 +1,9 @@
+node_modules
+logs
+.env
+.git
+.gitignore
+coverage
+tests
+client/dist
+client/node_modules

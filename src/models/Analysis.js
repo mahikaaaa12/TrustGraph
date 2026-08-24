@@ -58,6 +58,30 @@ const analysisSchema = new mongoose.Schema(
       edgeCount: { type: Number, default: 0 },
       centralityScore: { type: Number, default: 0 },
     },
+    mlPrediction: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    expectedLoss: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    policyEvaluation: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    abuseRingAnalysis: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    explainability: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    modelVersion: {
+      type: String,
+      default: '1.2.0-logistic-ensemble',
+    },
   },
   {
     timestamps: true,

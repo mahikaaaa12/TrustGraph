@@ -25,6 +25,9 @@ import ErrorLogsPage from './pages/ErrorLogsPage';
 import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 
+import SimulatorPage from './pages/SimulatorPage';
+import InvestigationPage from './pages/InvestigationPage';
+
 export default function App() {
   return (
     <ErrorLogProvider>
@@ -56,6 +59,8 @@ export default function App() {
                 <Route path="website" element={<WebsitePage />} />
                 <Route path="text" element={<TextPage />} />
                 <Route path="trust-score" element={<TrustScorePage />} />
+                <Route path="simulator" element={<SimulatorPage />} />
+                <Route path="investigation" element={<InvestigationPage />} />
                 <Route path="history" element={<HistoryPage />} />
                 <Route path="analysis/:id" element={<AnalysisDetailsPage />} />
                 <Route path="reports" element={<ReportsPage />} />

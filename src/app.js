@@ -17,6 +17,10 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 const historyRoutes = require('./routes/history.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const reportRoutes = require('./routes/report.routes');
+const feedbackRoutes = require('./routes/feedback.routes');
+const graphRoutes = require('./routes/graph.routes');
+const resilienceRoutes = require('./routes/resilience.routes');
+const modelMonitorRoutes = require('./routes/modelMonitor.routes');
 
 const globalErrorHandler = require('./middlewares/error.middleware');
 const AppError = require('./utils/appError');
@@ -35,20 +39,32 @@ function createApp() {
   );
 
   // 2. Performance & Body Parsing Middlewares
+  const { mongoSanitizeMiddleware } = require('./middlewares/sanitize.middleware');
   app.use(compression());
   app.use(express.json({ limit: DEFAULT_CONFIG.MAX_JSON_BODY_SIZE }));
   app.use(express.urlencoded({ extended: true, limit: DEFAULT_CONFIG.MAX_URL_ENCODED_SIZE }));
+  app.use(mongoSanitizeMiddleware);
 
   // 3. Static File Server for Uploads
   app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-  // 4. Winston HTTP Request Logger Middleware
+  // 4. Winston HTTP Request Logger & Prometheus Metrics Middleware
+  const { metricsMiddleware, metricsCollector } = require('./middlewares/metrics.middleware');
+  const { generalRateLimiter } = require('./middlewares/rateLimiter.middleware');
+  app.use(metricsMiddleware);
   app.use(httpLogger);
+  app.use('/api', generalRateLimiter);
 
   // 5. Interactive Swagger UI Documentation (/api/docs)
   setupSwagger(app);
 
-  // 6. Health Check Endpoint (Supported at /health, /api/health, and /api/v1/health)
+  // 6. Prometheus Metrics Endpoint
+  app.get('/metrics', (req, res) => {
+    res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    res.send(metricsCollector.toPrometheusFormat());
+  });
+
+  // 7. Health Check Endpoint (Supported at /health, /api/health, and /api/v1/health)
   const healthCheckHandler = (req, res) => {
     const dbState = getDbState();
     const isDbConnected = dbState === 1;
@@ -84,6 +100,10 @@ function createApp() {
     app.use(`${prefix}/history`, historyRoutes);
     app.use(`${prefix}/notifications`, notificationRoutes);
     app.use(`${prefix}/reports`, reportRoutes);
+    app.use(`${prefix}/feedback`, feedbackRoutes);
+    app.use(`${prefix}/graph`, graphRoutes);
+    app.use(`${prefix}/resilience`, resilienceRoutes);
+    app.use(`${prefix}/model-monitor`, modelMonitorRoutes);
   });
 
   // 8. Global 404 Unhandled Route Middleware (Passes AppError to next)

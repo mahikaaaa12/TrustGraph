@@ -1,0 +1,56 @@
+{
+  "modelVersion": "1.2.0-logistic-ensemble",
+  "trainedAt": "2026-08-20T10:00:00.000Z",
+  "architecture": "Calibrated Logistic Feature Ensemble with Ridge Regularization",
+  "intercept": -1.85,
+  "weights": {
+    "authenticityDeficit": 2.45,
+    "securityVulnerability": 2.10,
+    "metadataTamperScore": 1.65,
+    "reputationRisk": 1.95,
+    "piiLeakSeverity": 2.80,
+    "phishingProbability": 3.20,
+    "imageTamperEvidence": 2.15,
+    "aiSyntheticIndicator": 0.85,
+    "domainSuspicion": 1.75,
+    "socialEngThreat": 2.90,
+    "amountAnomaly": 1.40,
+    "velocitySurge": 1.90
+  },
+  "scaling": {
+    "mean": {
+      "authenticityDeficit": 0.25,
+      "securityVulnerability": 0.20,
+      "metadataTamperScore": 0.30,
+      "reputationRisk": 0.22,
+      "piiLeakSeverity": 0.15,
+      "phishingProbability": 0.18,
+      "imageTamperEvidence": 0.12,
+      "aiSyntheticIndicator": 0.35,
+      "domainSuspicion": 0.20,
+      "socialEngThreat": 0.15,
+      "amountAnomaly": 0.10,
+      "velocitySurge": 0.08
+    },
+    "std": {
+      "authenticityDeficit": 0.35,
+      "securityVulnerability": 0.30,
+      "metadataTamperScore": 0.32,
+      "reputationRisk": 0.28,
+      "piiLeakSeverity": 0.25,
+      "phishingProbability": 0.30,
+      "imageTamperEvidence": 0.25,
+      "aiSyntheticIndicator": 0.38,
+      "domainSuspicion": 0.28,
+      "socialEngThreat": 0.28,
+      "amountAnomaly": 0.22,
+      "velocitySurge": 0.20
+    }
+  },
+  "decisionThresholds": {
+    "low": 0.20,
+    "medium": 0.50,
+    "high": 0.75,
+    "critical": 0.90
+  }
+}

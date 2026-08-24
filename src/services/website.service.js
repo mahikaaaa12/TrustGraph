@@ -91,13 +91,15 @@ class WebsiteService {
         mxRecordsCount: mxRecords.length,
         hasMxRecords,
         hasSpfRecord,
-        estimatedDomainAgeDays: 1460,
-        registrar: 'Cloudflare, Inc.',
+        heuristicSecurityStatus: hasMxRecords ? 'CONFIGURED_MX' : 'NO_MX_RECORDS',
       };
     } catch (err) {
       return {
         ipAddresses: [],
         primaryIp: null,
+        hasMxRecords: false,
+        hasSpfRecord: false,
+        heuristicSecurityStatus: 'DNS_UNRESOLVED',
         error: `DNS resolution failed: ${err.message}`,
       };
     }
@@ -319,6 +321,13 @@ class WebsiteService {
 
     const hostname = urlObj.hostname;
 
+    // SSRF Security Check: Verify host is not loopback, private RFC 1918 subnet, or cloud metadata
+    const SsrfValidator = require('../utils/ssrfValidator');
+    const ssrfCheck = await SsrfValidator.validateHostname(hostname);
+    if (!ssrfCheck.isSafe) {
+      throw new AppError(`SSRF Security Violation: ${ssrfCheck.error}`, HTTP_STATUS.FORBIDDEN);
+    }
+
     // 1. SSL Inspection
     const sslInfo = await this.inspectSslCertificate(hostname, urlObj.port || 443);
     const tlsAssessment = this.evaluateTlsAssessment(sslInfo);
@@ -426,6 +435,16 @@ class WebsiteService {
       console.error('[WebsiteService] Notification trigger error:', nErr.message);
     }
 
+    // Heuristic Threat and Phishing Evaluation
+    const internalPhishingRisk = {
+      phishingLikelihood: phishingAssessment.likelihood,
+      isLikelyPhishing: phishingAssessment.isLikelyPhishing,
+      threatFlags: signals.map((s) => s.description),
+    };
+
+    const heuristicThreatScore = Math.round(phishingAssessment.likelihood * 100);
+    const heuristicSecurityStatus = riskAssessment.status || 'EVALUATED';
+
     return {
       analysisId: analysisRecord._id,
       url: urlObj.href,
@@ -433,15 +452,12 @@ class WebsiteService {
       domainAssessment,
       tlsAssessment,
       phishingAssessment,
-      threatIntelligenceStatus,
+      heuristicSecurityStatus,
+      heuristicThreatScore,
+      internalPhishingRisk,
       riskAssessment,
       sslCertificate: sslInfo,
       domainTelemetry: dnsInfo,
-      threatAnalysis: {
-        phishingScore: Math.round(phishingAssessment.likelihood * 100),
-        isLikelyPhishing: phishingAssessment.isLikelyPhishing,
-        threatFlags: signals.map((s) => s.description),
-      },
       signals,
       positiveFactors,
       negativeFactors,

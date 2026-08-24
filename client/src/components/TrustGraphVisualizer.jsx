@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, FileText, Globe, Lock, AlertTriangle, CheckCircle, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Shield, FileText, Globe, Lock, AlertTriangle, CheckCircle, ZoomIn, ZoomOut, RotateCcw, Activity } from 'lucide-react';
 
 export default function TrustGraphVisualizer({ analysis }) {
   const [zoom, setZoom] = useState(1);
@@ -10,67 +10,43 @@ export default function TrustGraphVisualizer({ analysis }) {
   const score = analysis.trustScore || 85;
   const risk = analysis.riskCategory || 'low';
   const entity = analysis.targetEntity || 'Target Artifact';
+  const abuseRing = analysis.abuseRingAnalysis || {};
 
-  // Construct nodes & edges based on analysis entityType
-  const nodes = [
-    {
-      id: 'root',
-      label: `Root Evaluation: ${score}%`,
-      type: 'Analysis',
-      score,
-      risk,
-      x: 250,
-      y: 50,
-      details: `Overall Trust Index: ${score}/100 (${risk.toUpperCase()} risk profile).`,
-    },
-    {
-      id: 'entity',
-      label: entity.substring(0, 20),
-      type: analysis.entityType?.toUpperCase() || 'TARGET',
-      score,
-      risk,
-      x: 250,
-      y: 130,
-      details: `Target Entity: ${entity} (Type: ${analysis.entityType}).`,
-    },
-    {
-      id: 'sec',
-      label: 'Security & Encryption',
-      type: 'Security',
-      score: Math.min(100, score + 5),
-      risk: score < 60 ? 'high' : 'low',
-      x: 100,
-      y: 220,
-      details: 'Encryption parameters and PII leak detection check.',
-    },
-    {
-      id: 'meta',
-      label: 'Metadata Provenance',
-      type: 'Metadata',
-      score: Math.max(0, score - 5),
-      risk: score < 50 ? 'medium' : 'low',
-      x: 250,
-      y: 220,
-      details: 'EXIF camera tags, PDF producer, or DNS WHOIS age.',
-    },
-    {
-      id: 'rep',
-      label: 'Source Reputation',
-      type: 'Reputation',
-      score,
-      risk,
-      x: 400,
-      y: 220,
-      details: 'Threat blacklists and clickbait sensationalism index.',
-    },
-  ];
+  // Construct nodes & edges based on analysis entityType and abuse-ring data
+  const hasRings = abuseRing.detected || abuseRing.cycleCount > 0;
 
-  const edges = [
-    { from: 'root', to: 'entity', label: 'evaluates' },
-    { from: 'entity', to: 'sec', label: 'scans' },
-    { from: 'entity', to: 'meta', label: 'parses' },
-    { from: 'entity', to: 'rep', label: 'queries' },
-  ];
+  const nodes = hasRings
+    ? [
+        { id: 'root', label: `Ring Alert (${abuseRing.cycleCount} Cycles)`, type: 'ABUSE_RING', score: 25, risk: 'critical', x: 250, y: 40, details: 'Circular entity collusion ring detected.' },
+        { id: 'acc_a', label: 'Entity A (Initiator)', type: 'USER', score: 30, risk: 'high', x: 120, y: 130, details: 'Account A - IP / Device Hub Initiator' },
+        { id: 'acc_b', label: 'Entity B (Proxy)', type: 'USER', score: 35, risk: 'high', x: 380, y: 130, details: 'Account B - Rapid Velocity Pass-through' },
+        { id: 'acc_c', label: 'Entity C (Drain)', type: 'USER', score: 20, risk: 'critical', x: 250, y: 220, details: 'Account C - Beneficiary destination' },
+        { id: 'hub_ip', label: 'Shared Device Hub', type: 'DEVICE', score: 15, risk: 'critical', x: 250, y: 130, details: 'Shared Hardware Fingerprint linking all 3 accounts' },
+      ]
+    : [
+        { id: 'root', label: `Root Evaluation: ${score}%`, type: 'Analysis', score, risk, x: 250, y: 40, details: `Overall Trust Index: ${score}/100 (${risk.toUpperCase()} risk profile).` },
+        { id: 'entity', label: entity.substring(0, 20), type: analysis.entityType?.toUpperCase() || 'TARGET', score, risk, x: 250, y: 120, details: `Target Entity: ${entity} (Type: ${analysis.entityType}).` },
+        { id: 'sec', label: 'Security & Encryption', type: 'Security', score: Math.min(100, score + 5), risk: score < 60 ? 'high' : 'low', x: 100, y: 210, details: 'Encryption parameters and PII leak detection check.' },
+        { id: 'meta', label: 'Metadata Provenance', type: 'Metadata', score: Math.max(0, score - 5), risk: score < 50 ? 'medium' : 'low', x: 250, y: 210, details: 'EXIF camera tags, PDF producer, or DNS WHOIS age.' },
+        { id: 'rep', label: 'Source Reputation', type: 'Reputation', score, risk, x: 400, y: 210, details: 'Threat blacklists and clickbait sensationalism index.' },
+      ];
+
+  const edges = hasRings
+    ? [
+        { from: 'root', to: 'hub_ip', label: 'collusion_root' },
+        { from: 'acc_a', to: 'acc_b', label: 'transfer_loop' },
+        { from: 'acc_b', to: 'acc_c', label: 'transfer_loop' },
+        { from: 'acc_c', to: 'acc_a', label: 'circular_cycle' },
+        { from: 'acc_a', to: 'hub_ip', label: 'shares_device' },
+        { from: 'acc_b', to: 'hub_ip', label: 'shares_device' },
+        { from: 'acc_c', to: 'hub_ip', label: 'shares_device' },
+      ]
+    : [
+        { from: 'root', to: 'entity', label: 'evaluates' },
+        { from: 'entity', to: 'sec', label: 'scans' },
+        { from: 'entity', to: 'meta', label: 'parses' },
+        { from: 'entity', to: 'rep', label: 'queries' },
+      ];
 
   const getNodeColor = (nodeRisk) => {
     if (nodeRisk === 'critical' || nodeRisk === 'high') return '#D96C6C';
@@ -84,9 +60,11 @@ export default function TrustGraphVisualizer({ analysis }) {
         <div>
           <h3 className="text-sm font-bold text-[#2B2B2B] flex items-center space-x-2">
             <Shield className="w-4 h-4 text-[#8E9A7D]" />
-            <span>Interactive Trust Graph Node Visualizer</span>
+            <span>Interactive Trust & Abuse-Ring Graph Topology</span>
           </h3>
-          <p className="text-xs text-[#6B7280]">Visual network topology connecting analysis root, target entity, and threat evidence</p>
+          <p className="text-xs text-[#6B7280]">
+            {hasRings ? '⚠️ Circular collusion cycle detected in entity relational topology' : 'Visual network topology connecting analysis root, target entity, and threat evidence'}
+          </p>
         </div>
 
         <div className="flex items-center space-x-2">
@@ -126,6 +104,7 @@ export default function TrustGraphVisualizer({ analysis }) {
             const source = nodes.find((n) => n.id === e.from);
             const target = nodes.find((n) => n.id === e.to);
             if (!source || !target) return null;
+            const isCycle = e.label.includes('cycle') || e.label.includes('loop');
             return (
               <g key={idx}>
                 <line
@@ -133,15 +112,16 @@ export default function TrustGraphVisualizer({ analysis }) {
                   y1={source.y}
                   x2={target.x}
                   y2={target.y}
-                  stroke="#D1D5DB"
-                  strokeWidth="2"
-                  strokeDasharray="4 4"
+                  stroke={isCycle ? '#D96C6C' : '#D1D5DB'}
+                  strokeWidth={isCycle ? '2.5' : '1.5'}
+                  strokeDasharray={isCycle ? 'none' : '4 4'}
                 />
                 <text
                   x={(source.x + target.x) / 2}
                   y={(source.y + target.y) / 2 - 5}
-                  fill="#9CA3AF"
-                  fontSize="9"
+                  fill={isCycle ? '#D96C6C' : '#9CA3AF'}
+                  fontSize="8"
+                  fontWeight={isCycle ? 'bold' : 'normal'}
                   fontFamily="sans-serif"
                   textAnchor="middle"
                 >
@@ -178,9 +158,9 @@ export default function TrustGraphVisualizer({ analysis }) {
                 />
                 <text
                   x={n.x}
-                  y={n.y + 32}
+                  y={n.y + 30}
                   fill="#2B2B2B"
-                  fontSize="10"
+                  fontSize="9"
                   fontWeight="bold"
                   fontFamily="sans-serif"
                   textAnchor="middle"

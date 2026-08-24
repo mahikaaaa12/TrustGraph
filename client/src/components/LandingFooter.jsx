@@ -29,17 +29,17 @@ export default function LandingFooter() {
         </div>
 
         <div className="space-y-3">
-          <h4 className="text-[#2B2B2B] font-bold uppercase tracking-wider text-[11px]">Enterprise Security</h4>
+          <h4 className="text-[#2B2B2B] font-bold uppercase tracking-wider text-[11px]">Security Architecture</h4>
           <ul className="space-y-2">
-            <li><a href="#stats" className="hover:text-[#2B2B2B] transition-colors">SOC2 Type II Certified</a></li>
-            <li><a href="#stats" className="hover:text-[#2B2B2B] transition-colors">GDPR & ISO 27001</a></li>
-            <li><a href="#stats" className="hover:text-[#2B2B2B] transition-colors">API SLA Guarantees</a></li>
+            <li><span className="text-[#6B7280]">SHA-256 File Deduplication</span></li>
+            <li><span className="text-[#6B7280]">Explainable Attributions</span></li>
+            <li><span className="text-[#6B7280]">SSRF & Upload Guardrails</span></li>
           </ul>
         </div>
 
         <div className="space-y-3">
-          <h4 className="text-[#2B2B2B] font-bold uppercase tracking-wider text-[11px]">Connect</h4>
-          <p className="text-[#6B7280]">Enterprise support, SOC2 compliance & security inquiries.</p>
+          <h4 className="text-[#2B2B2B] font-bold uppercase tracking-wider text-[11px]">Prototype Info</h4>
+          <p className="text-[#6B7280]">Multi-modal risk analysis prototype for security research and forensic verification.</p>
         </div>
       </div>
 
