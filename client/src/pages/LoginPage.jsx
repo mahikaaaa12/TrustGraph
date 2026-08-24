@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useErrorLogs } from '../context/ErrorLogContext';
-import { Shield, Lock, Mail, ArrowRight } from 'lucide-react';
+import { Shield, Lock, Mail, ArrowRight, AlertTriangle } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -19,22 +19,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  // Restore remembered email securely if previously saved by user (never password)
-  useEffect(() => {
-    try {
-      const rememberedEmail = localStorage.getItem('trustgraph_remembered_email');
-      if (rememberedEmail) {
-        setForm((prev) => ({
-          ...prev,
-          email: rememberedEmail,
-          rememberMe: true,
-        }));
-      }
-    } catch (e) {
-      // Ignore localStorage access issues
-    }
-  }, []);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -47,28 +31,22 @@ export default function LoginPage() {
       });
 
       if (res.data?.success) {
-        if (form.rememberMe && form.email) {
-          localStorage.setItem('trustgraph_remembered_email', form.email);
-        } else {
-          localStorage.removeItem('trustgraph_remembered_email');
-        }
-
         login(res.data.data.token, res.data.data.user);
         showToast('Login successful! Welcome to TrustGraph.', 'success');
         navigate('/dashboard');
       }
     } catch (err) {
       let userFriendlyMsg = 'Invalid email address or password.';
-      if (err.status === 'NETWORK_ERROR' || err.message?.includes('Network Error')) {
+      if (err.status === 'NETWORK_ERROR' || err.message?.includes('Network Error') || err.message?.includes('Unable to connect')) {
         userFriendlyMsg = 'Unable to connect to TrustGraph server. Please verify backend URL & network status.';
-      } else if (err.response?.data?.message) {
-        userFriendlyMsg = err.response.data.message;
+      } else if (err.status === 'TIMEOUT' || err.message?.includes('timeout')) {
+        userFriendlyMsg = 'TrustGraph server did not respond. Request timed out.';
       } else if (err.status === 401) {
         userFriendlyMsg = 'Invalid email address or password.';
       } else if (err.status === 403) {
         userFriendlyMsg = 'Access denied. Account may be suspended or unauthorized.';
       } else if (err.status === 404) {
-        userFriendlyMsg = 'Authentication endpoint not found (404).';
+        userFriendlyMsg = 'Authentication service endpoint was not found.';
       } else if (err.status === 500) {
         userFriendlyMsg = 'TrustGraph server encountered an internal error. Please try again later.';
       } else if (err.message) {
@@ -119,18 +97,21 @@ export default function LoginPage() {
           </div>
 
           {errorMsg && (
-            <div className="p-3.5 bg-[#D96C6C]/10 border border-[#D96C6C]/30 rounded-xl text-xs text-[#D96C6C]">
-              {errorMsg}
+            <div className="p-3.5 bg-[#D96C6C]/10 border border-[#D96C6C]/30 rounded-xl text-xs text-[#D96C6C] flex items-start space-x-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
             <div>
               <label className="text-xs font-semibold text-[#6B7280]">Email Address</label>
               <div className="relative mt-1">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] w-4 h-4 stroke-[1.5]" />
                 <input
                   type="email"
+                  name="user_email"
+                  autoComplete="off"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   placeholder="Enter your email address"
@@ -146,6 +127,8 @@ export default function LoginPage() {
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] w-4 h-4 stroke-[1.5]" />
                 <input
                   type="password"
+                  name="user_password"
+                  autoComplete="new-password"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   placeholder="Enter your password"

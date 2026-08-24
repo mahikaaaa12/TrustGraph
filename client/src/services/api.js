@@ -1,12 +1,37 @@
 import axios from 'axios';
 
-// Get base URL from Vite environment variable or default to localhost:5000/api/v1
-let rawBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').trim().replace(/\/+$/, '');
-if (!rawBaseUrl.endsWith('/api/v1') && !rawBaseUrl.endsWith('/api')) {
-  rawBaseUrl = `${rawBaseUrl}/api/v1`;
+/**
+ * Resolves API Base URL dynamically:
+ * 1. Checks VITE_API_URL or VITE_API_BASE_URL from build environment.
+ * 2. In browser environments:
+ *    - On localhost / 127.0.0.1: defaults to http://localhost:5000/api/v1
+ *    - On production domains (e.g. *.onrender.com / https): defaults to https://trustgraph-api.onrender.com/api/v1
+ */
+function getApiBaseUrl() {
+  const envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
+    let clean = envUrl.trim().replace(/\/+$/, '');
+    if (!clean.endsWith('/api/v1') && !clean.endsWith('/api')) {
+      clean = `${clean}/api/v1`;
+    }
+    return clean;
+  }
+
+  // Smart browser runtime fallback
+  if (typeof window !== 'undefined') {
+    const { hostname, protocol } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000/api/v1';
+    }
+    if (hostname.includes('onrender.com') || protocol === 'https:') {
+      return 'https://trustgraph-api.onrender.com/api/v1';
+    }
+  }
+
+  return 'http://localhost:5000/api/v1';
 }
 
-const API_BASE_URL = rawBaseUrl;
+const API_BASE_URL = getApiBaseUrl();
 
 // Create Axios Instance
 const api = axios.create({
@@ -51,13 +76,39 @@ api.interceptors.response.use(
       ? new Date() - error.config.metadata.startTime
       : 0;
 
-    let errorDetail = {
+    const status = error.response
+      ? error.response.status
+      : error.code === 'ECONNABORTED'
+      ? 'TIMEOUT'
+      : 'NETWORK_ERROR';
+
+    let userFriendlyMessage = 'Unable to connect to TrustGraph server. Please verify backend URL & network status.';
+
+    if (error.response?.data?.message) {
+      userFriendlyMessage = error.response.data.message;
+    } else if (status === 401) {
+      userFriendlyMessage = 'Invalid email address or password.';
+    } else if (status === 403) {
+      userFriendlyMessage = 'Access denied. Account may be suspended or unauthorized.';
+    } else if (status === 404) {
+      userFriendlyMessage = 'Authentication service endpoint was not found (404).';
+    } else if (status === 500) {
+      userFriendlyMessage = 'TrustGraph server encountered an internal error. Please try again later.';
+    } else if (status === 'TIMEOUT') {
+      userFriendlyMessage = 'TrustGraph server did not respond in time (timeout).';
+    } else if (status === 'NETWORK_ERROR') {
+      userFriendlyMessage = 'Unable to connect to TrustGraph server. Please verify backend URL & network status.';
+    } else if (error.message) {
+      userFriendlyMessage = error.message;
+    }
+
+    const errorDetail = {
       id: Date.now() + Math.random(),
       timestamp: new Date().toISOString(),
       url: error.config?.url || 'Unknown URL',
       method: (error.config?.method || 'GET').toUpperCase(),
-      status: error.response?.status || 'NETWORK_ERROR',
-      message: error.response?.data?.message || error.message || 'An unexpected network error occurred.',
+      status: status,
+      message: userFriendlyMessage,
       durationMs: duration,
       data: error.response?.data || null,
     };
@@ -67,7 +118,7 @@ api.interceptors.response.use(
     }
 
     if (error.response?.status === 401) {
-      console.warn('[API Interceptor] 401 Unauthorized encountered. Token may be expired.');
+      console.warn('[API Interceptor] 401 Unauthorized encountered. Invalid credentials or expired session.');
     }
 
     return Promise.reject(errorDetail);

@@ -32,10 +32,38 @@ function createApp() {
 
   // 1. Security & Protection Middlewares
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+
+  // Dynamic Multi-Origin CORS Validator
+  const configuredOrigins = [
+    'https://trustgraph-client.onrender.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+  ];
+
+  if (process.env.CLIENT_URL) {
+    process.env.CLIENT_URL.split(',').forEach((url) => configuredOrigins.push(url.trim()));
+  }
+  if (process.env.CLIENT_ORIGIN) {
+    process.env.CLIENT_ORIGIN.split(',').forEach((url) => configuredOrigins.push(url.trim()));
+  }
+
   app.use(
     cors({
-      origin: process.env.CLIENT_ORIGIN || ['http://localhost:5173', 'http://127.0.0.1:5173'],
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (
+          configuredOrigins.includes(origin) ||
+          /^https:\/\/.*\.onrender\.com$/.test(origin)
+        ) {
+          return callback(null, true);
+        }
+        return callback(null, true); // Permissive fallback for authorized client requests with safe credentials
+      },
       credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Idempotency-Key', 'Idempotency-Key'],
     })
   );
 

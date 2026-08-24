@@ -1,11 +1,12 @@
 services:
-  # 1. Backend Web Service
+  # 1. Backend Web Service (TrustGraph Express API)
   - type: web
     name: trustgraph-api
     env: node
     plan: free
     buildCommand: npm install
     startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
@@ -17,8 +18,10 @@ services:
         generateValue: true
       - key: CLIENT_URL
         value: https://trustgraph-client.onrender.com
+      - key: CLIENT_ORIGIN
+        value: https://trustgraph-client.onrender.com
 
-  # 2. Frontend Static Site with SPA Rewrite Rules
+  # 2. Frontend Static Site (TrustGraph React Vite SPA)
   - type: static
     name: trustgraph-client
     env: static
@@ -26,10 +29,12 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     routes:
-      # SPA Rewrite: Rewrites all non-file route paths to index.html for React Router
+      # SPA Rewrite: Rewrites all direct deep links to index.html for React Router
       - type: rewrite
         source: /*
         destination: /index.html
     envVars:
+      - key: VITE_API_URL
+        value: https://trustgraph-api.onrender.com/api/v1
       - key: VITE_API_BASE_URL
         value: https://trustgraph-api.onrender.com/api/v1
