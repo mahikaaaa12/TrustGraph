@@ -427,6 +427,10 @@ class ImageService {
       throw new AppError('Image file not found or access denied.', HTTP_STATUS.NOT_FOUND);
     }
 
+    if (!fs.existsSync(fileRecord.filePath)) {
+      throw new AppError('Image file is no longer available on disk. Please re-upload the image.', HTTP_STATUS.NOT_FOUND);
+    }
+
     const fileBuffer = fs.readFileSync(fileRecord.filePath);
     const sharpInstance = sharp(fileRecord.filePath);
     const sharpMeta = await sharpInstance.metadata();
@@ -505,6 +509,7 @@ class ImageService {
         nodeCount: sharpMeta.width * sharpMeta.height,
         edgeCount: Math.round(elaResults.averageErrorLevel),
         centralityScore: trustScore / 100,
+        elaFileName: elaResults.elaHeatmapFileName,
       },
     });
 

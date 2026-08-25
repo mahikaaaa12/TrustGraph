@@ -28,6 +28,8 @@ exports.analyzeImage = asyncHandler(async (req, res) => {
   });
 });
 
+const UploadedFile = require('../models/UploadedFile');
+
 exports.getElaHeatmap = asyncHandler(async (req, res) => {
   const analysisRecord = await Analysis.findOne({ _id: req.params.id, userId: req.user._id });
   if (!analysisRecord) {
@@ -37,9 +39,20 @@ exports.getElaHeatmap = asyncHandler(async (req, res) => {
     });
   }
 
-  const targetEntity = analysisRecord.targetEntity;
-  const fileName = `ela-${targetEntity}`;
-  const filePath = path.join(__dirname, '../uploads', fileName);
+  const uploadDir = path.resolve(__dirname, '../uploads');
+  let fileName = analysisRecord.graphMetadata?.elaFileName;
+  let filePath = fileName ? path.join(uploadDir, fileName) : null;
+
+  if (!filePath || !fs.existsSync(filePath)) {
+    const fileRecord = await UploadedFile.findOne({ originalName: analysisRecord.targetEntity, userId: req.user._id }).sort({ createdAt: -1 });
+    if (fileRecord) {
+      filePath = path.join(uploadDir, `ela-${fileRecord.fileName}`);
+    }
+  }
+
+  if (!filePath || !fs.existsSync(filePath)) {
+    filePath = path.join(uploadDir, `ela-${analysisRecord.targetEntity}`);
+  }
 
   if (!fs.existsSync(filePath)) {
     return res.status(HTTP_STATUS.NOT_FOUND).json({

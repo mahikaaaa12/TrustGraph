@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const Analysis = require('../models/Analysis');
@@ -16,40 +17,65 @@ class DocumentService {
    * Extracts text and technical metadata from PDF, DOCX, or TXT file.
    */
   static async extractTextAndMetadata(filePath, mimeType) {
+    if (!fs.existsSync(filePath)) {
+      throw new AppError('Document file not found on disk.', HTTP_STATUS.NOT_FOUND);
+    }
+
     const fileBuffer = fs.readFileSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
     let extractedText = '';
     let metadata = {};
 
-    if (mimeType === 'application/pdf') {
-      const pdfData = await pdfParse(fileBuffer);
-      extractedText = pdfData.text || '';
-      metadata = {
-        pageCount: pdfData.numpages || 1,
-        pdfVersion: pdfData.info?.PDFFormatVersion || '1.4',
-        title: pdfData.info?.Title || 'Untitled',
-        author: pdfData.info?.Author || 'Unknown',
-        creator: pdfData.info?.Creator || 'Unknown',
-        producer: pdfData.info?.Producer || 'Unknown',
-      };
-    } else if (
+    const isPdf = ext === '.pdf' || mimeType === 'application/pdf' || mimeType === 'application/x-pdf';
+    const isDocx =
+      ext === '.docx' ||
+      ext === '.doc' ||
       mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      mimeType === 'application/msword'
-    ) {
-      const result = await mammoth.extractRawText({ buffer: fileBuffer });
-      extractedText = result.value || '';
-      metadata = {
-        pageCount: Math.ceil((extractedText.length || 1) / 3000),
-        fileFormat: 'DOCX',
-        warnings: result.messages || [],
-      };
-    } else if (mimeType === 'text/plain' || mimeType === 'text/markdown' || (mimeType && mimeType.startsWith('text/'))) {
+      mimeType === 'application/msword';
+    const isTxt =
+      ext === '.txt' ||
+      ext === '.md' ||
+      mimeType === 'text/plain' ||
+      mimeType === 'text/markdown' ||
+      (mimeType && mimeType.startsWith('text/'));
+
+    if (isPdf) {
+      try {
+        const pdfData = await pdfParse(fileBuffer);
+        extractedText = pdfData.text || '';
+        metadata = {
+          pageCount: pdfData.numpages || 1,
+          pdfVersion: pdfData.info?.PDFFormatVersion || '1.4',
+          title: pdfData.info?.Title || 'Untitled',
+          author: pdfData.info?.Author || 'Unknown',
+          creator: pdfData.info?.Creator || 'Unknown',
+          producer: pdfData.info?.Producer || 'Unknown',
+        };
+      } catch (pdfErr) {
+        console.error('[DocumentService] PDF parsing error:', pdfErr.message);
+        throw new AppError(`Failed to parse PDF document: ${pdfErr.message}`, HTTP_STATUS.BAD_REQUEST);
+      }
+    } else if (isDocx) {
+      try {
+        const result = await mammoth.extractRawText({ buffer: fileBuffer });
+        extractedText = result.value || '';
+        metadata = {
+          pageCount: Math.max(1, Math.ceil((extractedText.length || 1) / 3000)),
+          fileFormat: 'DOCX',
+          warnings: result.messages || [],
+        };
+      } catch (docxErr) {
+        console.error('[DocumentService] DOCX parsing error:', docxErr.message);
+        throw new AppError(`Failed to parse DOCX document: ${docxErr.message}`, HTTP_STATUS.BAD_REQUEST);
+      }
+    } else if (isTxt) {
       extractedText = fileBuffer.toString('utf-8');
       metadata = {
         pageCount: Math.max(1, Math.ceil((extractedText.length || 1) / 3000)),
         fileFormat: 'TXT',
       };
     } else {
-      throw new AppError(`Unsupported mime type for document analysis: ${mimeType}`, HTTP_STATUS.BAD_REQUEST);
+      throw new AppError(`Unsupported mime type or file format for document analysis: ${mimeType} (${ext})`, HTTP_STATUS.BAD_REQUEST);
     }
 
     return { extractedText: extractedText.trim(), metadata };

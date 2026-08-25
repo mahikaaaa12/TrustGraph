@@ -146,7 +146,9 @@ function createApp() {
       if (
         req.originalUrl.startsWith('/api') ||
         req.originalUrl.startsWith('/health') ||
-        req.originalUrl.startsWith('/docs')
+        req.originalUrl.startsWith('/docs') ||
+        req.originalUrl.startsWith('/metrics') ||
+        req.originalUrl.startsWith('/uploads')
       ) {
         return next();
       }

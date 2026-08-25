@@ -28,19 +28,39 @@ class FileService {
 
     const checksum = this.computeChecksum(file.path);
 
-    // Deduplication check: See if identical content was uploaded previously
-    const existingFile = await UploadedFile.findOne({ checksum });
+    // Deduplication check: See if identical content was uploaded previously by this user
+    const existingFile = await UploadedFile.findOne({ checksum, userId });
     if (existingFile) {
-      // Remove duplicate physical file from disk to save storage space
-      if (fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
-      }
+      if (fs.existsSync(existingFile.filePath)) {
+        // Physical file exists on disk. Clean up the new duplicate file
+        if (fs.existsSync(file.path) && file.path !== existingFile.filePath) {
+          try {
+            fs.unlinkSync(file.path);
+          } catch (e) {
+            console.warn('[FileService] Unlink duplicate warning:', e.message);
+          }
+        }
 
-      return {
-        isDuplicate: true,
-        fileRecord: existingFile,
-        url: `${reqHost}/uploads/${existingFile.fileName}`,
-      };
+        return {
+          isDuplicate: true,
+          fileRecord: existingFile,
+          url: `${reqHost}/uploads/${existingFile.fileName}`,
+        };
+      } else {
+        // Physical file on disk was missing (e.g. server restart/ephemeral disk wipe on Render).
+        // Update database record with the new valid physical file path
+        existingFile.filePath = file.path;
+        existingFile.fileName = file.filename;
+        existingFile.mimeType = file.mimetype;
+        existingFile.fileSizeBytes = file.size;
+        await existingFile.save();
+
+        return {
+          isDuplicate: false,
+          fileRecord: existingFile,
+          url: `${reqHost}/uploads/${existingFile.fileName}`,
+        };
+      }
     }
 
     // Persist file record in database

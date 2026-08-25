@@ -5,13 +5,18 @@ describe('Production SPA Deep-Link Routing & API Boundary Integration Tests', ()
   describe('1. Direct Navigation & Deep-Link Frontend Routes', () => {
     const deepLinkRoutes = [
       '/login',
+      '/register',
       '/signup',
       '/dashboard',
       '/dashboard/profile',
-      '/dashboard/reports',
+      '/dashboard/document',
+      '/dashboard/image',
+      '/dashboard/website',
+      '/dashboard/text',
+      '/dashboard/risk-simulator',
+      '/dashboard/abuse-ring',
       '/dashboard/history',
-      '/dashboard/simulator',
-      '/dashboard/investigation',
+      '/dashboard/reports',
       '/dashboard/settings',
       '/dashboard/notifications',
     ];

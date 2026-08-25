@@ -121,8 +121,8 @@ export default function DocumentPage() {
   const riskLevel = (riskAssessment.riskLevel || indicators.riskCategory || 'LOW').toUpperCase();
   const pageCount = metadata.pageCount || 1;
 
-  const aiLikelihood = Math.round((aiAssessment.likelihood || 0.05) * 100);
-  const aiConfidence = Math.round((aiAssessment.confidence || 0.70) * 100);
+  const aiLikelihood = Math.round((aiAssessment.likelihood ?? 0.05) * 100);
+  const aiConfidence = Math.round((aiAssessment.confidence ?? 0.70) * 100);
   const aiClassification = aiAssessment.classification || 'LOW';
   const aiSignals = Array.isArray(aiAssessment.signals) ? aiAssessment.signals : [];
 

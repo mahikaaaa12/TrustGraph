@@ -106,8 +106,8 @@ export default function ImagePage() {
   const score = analysisResult?.overallTrustScore ?? analysisResult?.trustScore ?? 85;
   const riskLevel = (riskAssessment.riskLevel || analysisResult?.riskCategory || 'LOW').toUpperCase();
 
-  const aiLikelihood = Math.round((aiAssessment.likelihood || 0.05) * 100);
-  const manipLikelihood = Math.round((manipAssessment.likelihood || 0.10) * 100);
+  const aiLikelihood = Math.round((aiAssessment.likelihood ?? 0.05) * 100);
+  const manipLikelihood = Math.round((manipAssessment.likelihood ?? 0.10) * 100);
 
   const originalPreviewUrl = selectedFile ? URL.createObjectURL(selectedFile) : '';
 
