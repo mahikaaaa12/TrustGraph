@@ -5,7 +5,7 @@ import api from '../services/api';
 import { Search, Bell, User, CheckCircle, AlertCircle, Shield, Info } from 'lucide-react';
 
 export default function Navbar() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [healthStatus, setHealthStatus] = useState('connected');
@@ -159,11 +159,16 @@ export default function Navbar() {
           className="flex items-center space-x-2.5 p-1.5 pl-2.5 pr-3 rounded-xl bg-[#F8F7F4] border border-[#E5E7EB] hover:bg-[#F3F2EF] transition-colors"
         >
           <div className="w-6 h-6 rounded-full bg-[#8E9A7D] text-white flex items-center justify-center font-bold text-xs">
-            {user?.name?.[0] || 'A'}
+            {user?.name?.[0] || 'U'}
           </div>
-          <span className="text-xs font-semibold text-[#2B2B2B] hidden md:inline">
-            {user?.name || 'Analyst Session'}
-          </span>
+          <div className="hidden md:flex flex-col text-left">
+            <span className="text-xs font-semibold text-[#2B2B2B]">
+              {user?.name || 'Authenticated User'}
+            </span>
+            <span className="text-[9px] font-bold text-[#8E9A7D] tracking-wider uppercase">
+              {role || 'USER'}
+            </span>
+          </div>
         </NavLink>
       </div>
     </header>

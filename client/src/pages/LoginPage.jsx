@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, getRoleDefaultRoute } from '../context/AuthContext';
 import { useErrorLogs } from '../context/ErrorLogContext';
 import { Shield, Lock, Mail, ArrowRight, AlertTriangle } from 'lucide-react';
 
@@ -31,9 +31,11 @@ export default function LoginPage() {
       });
 
       if (res.data?.success) {
-        login(res.data.data.token, res.data.data.user);
+        const authenticatedUser = res.data.data.user;
+        login(res.data.data.token, authenticatedUser);
         showToast('Login successful! Welcome to TrustGraph.', 'success');
-        navigate('/dashboard');
+        const targetRoute = getRoleDefaultRoute(authenticatedUser?.role);
+        navigate(targetRoute);
       }
     } catch (err) {
       let userFriendlyMsg = 'Invalid email address or password.';

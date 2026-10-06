@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, getRoleDefaultRoute } from '../context/AuthContext';
 import { useErrorLogs } from '../context/ErrorLogContext';
 import { Shield, User, Mail, Lock, ArrowRight, CheckCircle } from 'lucide-react';
 
 export default function SignupPage() {
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const { showToast } = useErrorLogs();
   const navigate = useNavigate();
 
@@ -15,7 +15,7 @@ export default function SignupPage() {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'analyst',
+    role: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -35,6 +35,11 @@ export default function SignupPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!form.role) {
+      setErrorMsg('Please select your role.');
+      return;
+    }
+
     if (form.password !== form.confirmPassword) {
       setErrorMsg('Passwords do not match.');
       return;
@@ -52,9 +57,19 @@ export default function SignupPage() {
       });
 
       if (res.data?.success) {
-        login(res.data.data.token, res.data.data.user);
-        showToast('Registration successful! Redirecting to dashboard...', 'success');
-        navigate('/dashboard');
+        const authenticatedUser = res.data.data.user;
+
+        // Security check: reject ADMIN account creation returned via public signup
+        if (!authenticatedUser?.role || authenticatedUser.role === 'ADMIN') {
+          setErrorMsg('System Administrator accounts cannot be created via public registration.');
+          logout();
+          return;
+        }
+
+        login(res.data.data.token, authenticatedUser);
+        showToast('Registration successful! Welcome to TrustGraph.', 'success');
+        const targetRoute = getRoleDefaultRoute(authenticatedUser.role);
+        navigate(targetRoute);
       }
     } catch (err) {
       setErrorMsg(err.message || 'Registration failed. Email may already exist.');
@@ -201,10 +216,11 @@ export default function SignupPage() {
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
                 className="w-full mt-1 bg-[#F8F7F4] border border-[#E5E7EB] rounded-xl px-3.5 py-2.5 text-xs text-[#2B2B2B] focus:outline-none focus:border-[#8E9A7D]"
+                required
               >
-                <option value="analyst">Security Analyst</option>
-                <option value="user">Enterprise User</option>
-                <option value="admin">System Administrator</option>
+                <option value="">-- Select Your Role --</option>
+                <option value="INDUSTRY_ANALYST">Industry Analyst</option>
+                <option value="CONTENT_CREATOR">Content Creator</option>
               </select>
             </div>
 

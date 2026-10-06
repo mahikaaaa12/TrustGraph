@@ -89,7 +89,7 @@ export default function AnalysisDetailsPage() {
   }
 
   const score = analysis.trustScore || 0;
-  const confidence = (analysis.confidenceScore || 0.95) * 100;
+  const confidence = (analysis.confidenceScore !== undefined && analysis.confidenceScore !== null ? analysis.confidenceScore : 1.0) * 100;
   const risk = analysis.riskCategory || 'low';
 
   return (
