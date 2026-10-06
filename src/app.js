@@ -22,6 +22,8 @@ const feedbackRoutes = require('./routes/feedback.routes');
 const graphRoutes = require('./routes/graph.routes');
 const resilienceRoutes = require('./routes/resilience.routes');
 const modelMonitorRoutes = require('./routes/modelMonitor.routes');
+const creatorRoutes = require('./routes/creator.routes');
+const instagramRoutes = require('./routes/instagram.routes');
 
 const globalErrorHandler = require('./middlewares/error.middleware');
 const AppError = require('./utils/appError');
@@ -134,6 +136,8 @@ function createApp() {
     app.use(`${prefix}/graph`, graphRoutes);
     app.use(`${prefix}/resilience`, resilienceRoutes);
     app.use(`${prefix}/model-monitor`, modelMonitorRoutes);
+    app.use(`${prefix}/creator`, creatorRoutes);
+    app.use(`${prefix}/instagram`, instagramRoutes);
   });
 
   // 8. Production Static Frontend Assets & Clean SPA Fallback

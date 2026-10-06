@@ -30,8 +30,9 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['user', 'analyst', 'admin'],
-      default: 'user',
+      enum: ['INDUSTRY_ANALYST', 'CONTENT_CREATOR', 'ADMIN', 'user', 'analyst', 'admin', 'creator'],
+      default: 'INDUSTRY_ANALYST',
+      set: normalizeRole,
       index: true,
     },
     avatar: {
@@ -95,10 +96,34 @@ const userSchema = new mongoose.Schema(
 );
 
 /**
+ * Pre-validate Middleware: Normalizes role string to canonical enum format.
+ */
+function normalizeRole(roleStr) {
+  if (!roleStr) return 'INDUSTRY_ANALYST';
+  const upper = String(roleStr).trim().toUpperCase();
+  if (upper === 'ADMIN') return 'ADMIN';
+  if (upper === 'CONTENT_CREATOR' || upper === 'CREATOR') return 'CONTENT_CREATOR';
+  if (upper === 'INDUSTRY_ANALYST' || upper === 'ANALYST' || upper === 'USER') return 'INDUSTRY_ANALYST';
+  return 'INDUSTRY_ANALYST';
+}
+
+userSchema.pre('validate', function (next) {
+  if (this.role) {
+    this.role = normalizeRole(this.role);
+  } else {
+    this.role = 'INDUSTRY_ANALYST';
+  }
+  next();
+});
+
+/**
  * Pre-save Middleware: Hashes the user password using bcrypt before persisting to DB.
  * Only runs if the password field was modified.
  */
 userSchema.pre('save', async function (next) {
+  if (this.role) {
+    this.role = normalizeRole(this.role);
+  }
   if (!this.isModified('password')) return next();
 
   const salt = await bcrypt.genSalt(12);

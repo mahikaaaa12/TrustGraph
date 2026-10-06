@@ -2,8 +2,18 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const History = require('../models/History');
 const AppError = require('../utils/appError');
+const logger = require('../config/logger');
 const { generateToken } = require('../utils/jwt');
 const { HTTP_STATUS } = require('../constants');
+
+function normalizeRoleInput(roleStr) {
+  if (!roleStr) return 'INDUSTRY_ANALYST';
+  const upper = String(roleStr).trim().toUpperCase();
+  if (upper === 'ADMIN') return 'ADMIN';
+  if (upper === 'CONTENT_CREATOR' || upper === 'CREATOR') return 'CONTENT_CREATOR';
+  if (upper === 'INDUSTRY_ANALYST' || upper === 'ANALYST' || upper === 'USER') return 'INDUSTRY_ANALYST';
+  return 'INDUSTRY_ANALYST';
+}
 
 /**
  * Authentication & Account Management Service
@@ -14,6 +24,26 @@ class AuthService {
    */
   static async signup(userData, reqInfo = {}) {
     const { name, email, password, role } = userData;
+
+    // Public Registration Rule: Reject ADMIN role assignment during public signup
+    if (role) {
+      const upperRole = String(role).trim().toUpperCase();
+      if (upperRole === 'ADMIN') {
+        throw new AppError(
+          'System Administrator role cannot be assigned during public registration.',
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+      if (
+        upperRole !== 'INDUSTRY_ANALYST' &&
+        upperRole !== 'ANALYST' &&
+        upperRole !== 'CONTENT_CREATOR' &&
+        upperRole !== 'CREATOR' &&
+        upperRole !== 'USER'
+      ) {
+        throw new AppError('Invalid account role selected for registration.', HTTP_STATUS.BAD_REQUEST);
+      }
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -33,7 +63,7 @@ class AuthService {
       name,
       email,
       password,
-      role: role || 'user',
+      role: normalizeRoleInput(role),
       lastLoginAt: new Date(),
       lastPasswordChangeAt: new Date(),
       loginHistory: [initialLogin],
@@ -311,6 +341,91 @@ class AuthService {
     const token = generateToken({ id: user._id, role: user.role });
 
     return { message: 'Password reset successful.', token };
+  }
+
+  /**
+   * Retrieves all user accounts for admin user management.
+   */
+  static async getAllUsers() {
+    const users = await User.find()
+      .select('-password -passwordResetToken -passwordResetExpires')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return users;
+  }
+
+  /**
+   * Updates a target user's RBAC role with audit logging and single-admin safety enforcement.
+   */
+  static async updateUserRole(targetUserId, newRoleInput, adminUser, reqInfo = {}) {
+    const targetUser = await User.findById(targetUserId);
+    if (!targetUser) {
+      throw new AppError('Target user not found.', HTTP_STATUS.NOT_FOUND);
+    }
+
+    const previousRole = targetUser.role;
+    const newRole = normalizeRoleInput(newRoleInput);
+
+    if (previousRole === newRole) {
+      const sanitized = targetUser.toObject();
+      delete sanitized.password;
+      return { user: sanitized, token: null };
+    }
+
+    // Safety Enforcement: Prevent demoting the last remaining ADMIN account
+    if (previousRole === 'ADMIN' && newRole !== 'ADMIN') {
+      const adminCount = await User.countDocuments({ role: 'ADMIN' });
+      if (adminCount <= 1) {
+        throw new AppError(
+          'Action blocked: Cannot demote or remove the last remaining Administrator account from the system.',
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+    }
+
+    // Update target user's role
+    targetUser.role = newRole;
+    await targetUser.save({ validateBeforeSave: false });
+
+    // Audit Logging (Winston Logger)
+    logger.info('[Audit Log] User Role Modified', {
+      adminId: adminUser._id,
+      adminEmail: adminUser.email,
+      targetUserId: targetUser._id,
+      targetEmail: targetUser.email,
+      previousRole,
+      newRole,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Audit Logging (History Collection)
+    await History.create({
+      userId: adminUser._id,
+      action: 'ROLE_CHANGE',
+      entityId: targetUser._id,
+      entityType: 'User',
+      details: {
+        adminEmail: adminUser.email,
+        targetEmail: targetUser.email,
+        previousRole,
+        newRole,
+        message: `Role changed from ${previousRole} to ${newRole} for ${targetUser.email}`,
+      },
+      ipAddress: reqInfo.ip || '0.0.0.0',
+      userAgent: reqInfo.userAgent || 'Unknown',
+    });
+
+    // Re-issue fresh token if the admin is updating their own role
+    let newToken = null;
+    if (String(adminUser._id) === String(targetUser._id)) {
+      newToken = generateToken({ id: targetUser._id, role: targetUser.role });
+    }
+
+    const userObj = targetUser.toObject();
+    delete userObj.password;
+
+    return { user: userObj, token: newToken };
   }
 }
 

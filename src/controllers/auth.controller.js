@@ -111,3 +111,26 @@ exports.resetPassword = asyncHandler(async (req, res) => {
     data: { token: result.token },
   });
 });
+
+exports.getAllUsers = asyncHandler(async (req, res) => {
+  const users = await AuthService.getAllUsers();
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    data: { users },
+  });
+});
+
+exports.updateUserRole = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { role } = req.body;
+  const reqInfo = { ip: req.ip, userAgent: req.get('User-Agent') };
+
+  const { user, token } = await AuthService.updateUserRole(id, role, req.user, reqInfo);
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: `User role successfully updated to ${user.role}.`,
+    data: { user, ...(token && { token }) },
+  });
+});

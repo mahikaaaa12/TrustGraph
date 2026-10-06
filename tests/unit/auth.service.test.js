@@ -47,6 +47,18 @@ describe('AuthService Unit Tests', () => {
         AuthService.signup({ name: 'Test', email: 'existing@trustgraph.ai', password: 'Password123!' })
       ).rejects.toThrow(AppError);
     });
+
+    it('should throw AppError with 400 status if attempting to register as ADMIN via public signup', async () => {
+      await expect(
+        AuthService.signup({ name: 'Admin Attempt', email: 'admin@hack.com', password: 'Password123!', role: 'ADMIN' })
+      ).rejects.toThrow('System Administrator role cannot be assigned during public registration.');
+    });
+
+    it('should throw AppError with 400 status if attempting to register with invalid role', async () => {
+      await expect(
+        AuthService.signup({ name: 'Invalid Role', email: 'inv@hack.com', password: 'Password123!', role: 'SUPER_HACKER' })
+      ).rejects.toThrow('Invalid account role selected for registration.');
+    });
   });
 
   describe('login()', () => {

@@ -15,6 +15,20 @@ class DashboardController {
       next(err);
     }
   }
+
+  static async getCreatorSummary(req, res, next) {
+    try {
+      const userId = req.user._id;
+      const data = await DashboardService.getCreatorSummary(userId);
+
+      res.status(HTTP_STATUS.OK).json({
+        success: true,
+        data,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = DashboardController;

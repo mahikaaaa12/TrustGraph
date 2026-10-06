@@ -237,73 +237,80 @@ class TrustScoreService {
         : 'GRAPH CLEAN: No circular collusion cycles detected in entity topology.',
     ];
 
-    const analysisRecord = await Analysis.create({
-      userId,
-      targetEntity: 'Multi-Modal Trust Evaluation',
-      entityType: 'content',
-      trustScore: overallTrustScore,
-      confidenceScore,
-      status: 'completed',
-      riskCategory,
-      insights,
-      graphMetadata: {
-        nodeCount: graphAnalysis.nodeCount || providedScores.length,
-        edgeCount: graphAnalysis.edgeCount || Object.keys(breakdown).length,
-        centralityScore: overallTrustScore / 100,
-      },
-      mlPrediction: {
-        fraudProbability: mlPrediction.fraudProbability,
-        riskTier: mlPrediction.riskTier,
-        modelVersion: mlPrediction.modelVersion,
-        rawLogit: mlPrediction.rawLogit,
-        isFallback: mlExecution.isFallback,
-      },
-      expectedLoss,
-      policyEvaluation,
-      abuseRingAnalysis: {
-        detected: graphAnalysis.detected,
-        ringRiskScore: graphAnalysis.ringRiskScore,
-        cycleCount: graphAnalysis.cycleCount,
-      },
-      explainability: {
-        summary: explainability.summary,
-        topRiskDrivers: explainability.topRiskDrivers,
-        protectiveFactors: explainability.protectiveFactors,
-        counterfactuals: explainability.counterfactuals,
-      },
-      modelVersion: mlPrediction.modelVersion,
-    });
+    const { getDbState } = require('../config/db');
+    let analysisRecord = null;
 
-    await History.create({
-      userId,
-      action: 'ANALYSIS_RUN',
-      entityId: analysisRecord._id,
-      entityType: 'Analysis',
-      details: {
-        overallTrustScore,
-        confidenceScore,
-        riskCategory,
-        fraudProbability: mlPrediction.fraudProbability,
-        modelVersion: mlPrediction.modelVersion,
-      },
-    });
-
-    try {
-      const NotificationService = require('./notification.service');
-      await NotificationService.createNotification({
+    if (getDbState() === 1) {
+      analysisRecord = await Analysis.create({
         userId,
-        type: riskCategory === 'critical' ? 'CRITICAL_THREAT' : 'ANALYSIS_COMPLETE',
-        title: `Multi-Modal Trust Score Evaluation`,
-        message: `Composite Trust Score computed: ${overallTrustScore}% (${riskCategory.toUpperCase()} risk profile). ML Fraud Probability: ${(mlPrediction.fraudProbability * 100).toFixed(1)}%.`,
-        severity: riskCategory === 'critical' ? 'critical' : riskCategory === 'high' ? 'warning' : 'success',
-        entityId: analysisRecord._id,
-      });
-    } catch (nErr) {
-      console.error('[TrustScoreService] Notification trigger error:', nErr.message);
+        targetEntity: 'Multi-Modal Trust Evaluation',
+        entityType: 'content',
+        trustScore: overallTrustScore,
+        confidenceScore,
+        status: 'completed',
+        riskCategory,
+        insights,
+        graphMetadata: {
+          nodeCount: graphAnalysis.nodeCount || providedScores.length,
+          edgeCount: graphAnalysis.edgeCount || Object.keys(breakdown).length,
+          centralityScore: overallTrustScore / 100,
+        },
+        mlPrediction: {
+          fraudProbability: mlPrediction.fraudProbability,
+          riskTier: mlPrediction.riskTier,
+          modelVersion: mlPrediction.modelVersion,
+          rawLogit: mlPrediction.rawLogit,
+          isFallback: mlExecution.isFallback,
+        },
+        expectedLoss,
+        policyEvaluation,
+        abuseRingAnalysis: {
+          detected: graphAnalysis.detected,
+          ringRiskScore: graphAnalysis.ringRiskScore,
+          cycleCount: graphAnalysis.cycleCount,
+        },
+        explainability: {
+          summary: explainability.summary,
+          topRiskDrivers: explainability.topRiskDrivers,
+          protectiveFactors: explainability.protectiveFactors,
+          counterfactuals: explainability.counterfactuals,
+        },
+        modelVersion: mlPrediction.modelVersion,
+      }).catch(() => null);
+
+      if (analysisRecord) {
+        await History.create({
+          userId,
+          action: 'ANALYSIS_RUN',
+          entityId: analysisRecord._id,
+          entityType: 'Analysis',
+          details: {
+            overallTrustScore,
+            confidenceScore,
+            riskCategory,
+            fraudProbability: mlPrediction.fraudProbability,
+            modelVersion: mlPrediction.modelVersion,
+          },
+        }).catch(() => null);
+
+        try {
+          const NotificationService = require('./notification.service');
+          await NotificationService.createNotification({
+            userId,
+            type: riskCategory === 'critical' ? 'CRITICAL_THREAT' : 'ANALYSIS_COMPLETE',
+            title: `Multi-Modal Trust Score Evaluation`,
+            message: `Composite Trust Score computed: ${overallTrustScore}% (${riskCategory.toUpperCase()} risk profile). ML Fraud Probability: ${(mlPrediction.fraudProbability * 100).toFixed(1)}%.`,
+            severity: riskCategory === 'critical' ? 'critical' : riskCategory === 'high' ? 'warning' : 'success',
+            entityId: analysisRecord._id,
+          });
+        } catch (nErr) {
+          console.error('[TrustScoreService] Notification trigger error:', nErr.message);
+        }
+      }
     }
 
     return {
-      analysisId: analysisRecord._id,
+      analysisId: analysisRecord ? analysisRecord._id : null,
       overallTrustScore,
       confidenceScore,
       riskCategory,

@@ -1,12 +1,12 @@
 const express = require('express');
 const trustScoreController = require('../controllers/trustScore.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const { protect, restrictTo } = require('../middlewares/auth.middleware');
 const { analysisRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { idempotencyMiddleware } = require('../middlewares/idempotency.middleware');
 
 const router = express.Router();
 
-router.use(protect);
+router.use(protect, restrictTo('INDUSTRY_ANALYST', 'ADMIN'));
 
 router.post('/evaluate', analysisRateLimiter, idempotencyMiddleware, trustScoreController.evaluateTrustScore);
 router.post('/decision', analysisRateLimiter, trustScoreController.evaluateDecision);

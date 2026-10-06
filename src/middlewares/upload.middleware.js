@@ -12,13 +12,15 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/msword', // DOC
   'text/plain',
   'text/markdown',
+  'text/csv',
+  'application/csv',
   'image/jpeg',
   'image/png',
   'image/webp',
   'image/gif',
 ]);
 
-const ALLOWED_EXTENSIONS = new Set(['.pdf', '.docx', '.doc', '.txt', '.md', '.jpg', '.jpeg', '.png', '.webp', '.gif']);
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.docx', '.doc', '.txt', '.md', '.csv', '.jpg', '.jpeg', '.png', '.webp', '.gif']);
 
 const DANGEROUS_EXTENSIONS = [
   '.exe', '.bat', '.cmd', '.sh', '.bash', '.php', '.phtml', '.py',
@@ -90,7 +92,7 @@ const fileFilter = (req, file, cb) => {
   if (!isExtensionValid || !isMimeValid) {
     return cb(
       new AppError(
-        `Invalid file format (${ext} / ${mimeType}). Only PDF, DOCX, TXT, MD, and JPEG/PNG/WEBP images are allowed.`,
+        `Invalid file format (${ext} / ${mimeType}). Only PDF, DOCX, TXT, MD, CSV, and JPEG/PNG/WEBP images are allowed.`,
         HTTP_STATUS.BAD_REQUEST
       ),
       false
@@ -112,4 +114,14 @@ const upload = multer({
   },
 });
 
+const batchUpload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: MAX_FILE_SIZE_BYTES,
+    files: 20, // Support up to 20 files for batch analysis
+  },
+});
+
 module.exports = upload;
+module.exports.batchUpload = batchUpload;

@@ -1,10 +1,10 @@
 const express = require('express');
 const feedbackController = require('../controllers/feedback.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const { protect, restrictTo } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
-router.use(protect);
+router.use(protect, restrictTo('INDUSTRY_ANALYST', 'ADMIN'));
 
 router.post('/', feedbackController.submitFeedback);
 router.get('/', feedbackController.getFeedbackList);

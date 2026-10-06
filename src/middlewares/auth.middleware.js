@@ -10,9 +10,11 @@ const { HTTP_STATUS, RESPONSE_MESSAGES } = require('../constants');
 exports.protect = asyncHandler(async (req, res, next) => {
   let token;
 
-  // 1. Extract Bearer token from HTTP Authorization Header
+  // 1. Extract Bearer token from HTTP Authorization Header or Query Parameter
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
   }
 
   if (!token) {
@@ -39,13 +41,44 @@ exports.protect = asyncHandler(async (req, res, next) => {
 });
 
 /**
- * Middleware: Restricts route access to specified user roles (Role-Based Access Control - RBAC).
+ * Helper: Normalizes any role string to canonical enum value.
  */
-exports.restrictTo = (...roles) => {
+function normalizeUserRole(roleStr) {
+  if (!roleStr) return 'INDUSTRY_ANALYST';
+  const upper = String(roleStr).trim().toUpperCase();
+  if (upper === 'ADMIN') return 'ADMIN';
+  if (upper === 'CONTENT_CREATOR' || upper === 'CREATOR') return 'CONTENT_CREATOR';
+  if (upper === 'INDUSTRY_ANALYST' || upper === 'ANALYST' || upper === 'USER') return 'INDUSTRY_ANALYST';
+  return 'INDUSTRY_ANALYST';
+}
+
+/**
+ * Middleware: Restricts route access to specified user roles (Role-Based Access Control - RBAC).
+ * Supports both restrictTo and requireRole export aliases.
+ * ADMIN role inherently satisfies all role checks.
+ */
+const restrictTo = (...allowedRoles) => {
+  const normalizedAllowed = allowedRoles.map((r) => normalizeUserRole(r));
+
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return next(new AppError(RESPONSE_MESSAGES.FORBIDDEN, HTTP_STATUS.FORBIDDEN));
+    if (!req.user) {
+      return next(new AppError(RESPONSE_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED));
     }
+
+    const userRole = normalizeUserRole(req.user.role);
+
+    // ADMIN role has full system access to all endpoints
+    if (userRole === 'ADMIN') {
+      return next();
+    }
+
+    if (!normalizedAllowed.includes(userRole)) {
+      return next(new AppError('Access denied: Unauthorized role permission for this endpoint.', HTTP_STATUS.FORBIDDEN));
+    }
+
     next();
   };
 };
+
+exports.restrictTo = restrictTo;
+exports.requireRole = restrictTo;

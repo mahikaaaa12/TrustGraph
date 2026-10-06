@@ -1,11 +1,11 @@
 const express = require('express');
 const modelMonitorController = require('../controllers/modelMonitor.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const { protect, restrictTo } = require('../middlewares/auth.middleware');
 const { analysisRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 const router = express.Router();
 
-router.use(protect);
+router.use(protect, restrictTo('ADMIN'));
 
 router.get('/dashboard', modelMonitorController.getDashboardMetrics);
 router.post('/feedback', analysisRateLimiter, modelMonitorController.recordFeedback);

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 /**
- * Report Schema definition for generated TrustGraph audit and risk reports.
+ * Report Schema definition for generated TrustGraph audit, forensic, and creator verification reports.
  */
 const reportSchema = new mongoose.Schema(
   {
@@ -28,7 +28,19 @@ const reportSchema = new mongoose.Schema(
     },
     analysisType: {
       type: String,
-      enum: ['document', 'image', 'website', 'text', 'trust_score', 'transaction', 'system'],
+      enum: [
+        'document',
+        'image',
+        'website',
+        'text',
+        'trust_score',
+        'transaction',
+        'system',
+        'creator_verification',
+        'creator_package',
+        'brand_collaboration',
+        'batch_analysis',
+      ],
       default: 'trust_score',
       index: true,
     },
