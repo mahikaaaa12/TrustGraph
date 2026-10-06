@@ -94,20 +94,30 @@ exports.initiateOAuth = (req, res) => {
   }
 };
 
+console.log('[INSTAGRAM_DEPLOY_CHECK] Instagram OAuth controller loaded');
+console.log('[INSTAGRAM_DEPLOY_CHECK] callback handler version: v2.5-callback-tracer-0765c8');
+
 // ──────────────────────────────────────────────────────────────────────
 // GET /instagram/oauth/callback
 // Instagram redirects here after the user authorizes (or denies) the app.
 // This endpoint is PUBLIC (no JWT auth) so Meta can redirect to it.
 // ──────────────────────────────────────────────────────────────────────
 exports.oauthCallback = async (req, res) => {
+  console.log('[INSTAGRAM_OAUTH] CURRENT_CALLBACK_HANDLER_REACHED');
   const { code, state, error, error_reason } = req.query;
 
-  console.log(`[Instagram OAuth] Callback endpoint hit by Meta redirect`);
+  let clientUrl = process.env.CLIENT_URL || process.env.CLIENT_ORIGIN || 'https://trustgraph-client.onrender.com';
+  if (clientUrl.includes('trustgraph-zx3q.onrender.com')) {
+    console.warn(`[Instagram OAuth] CLIENT_URL environment variable points to backend URL (${clientUrl}). Overriding redirect target to frontend URL: https://trustgraph-client.onrender.com`);
+    clientUrl = 'https://trustgraph-client.onrender.com';
+  }
+
+  console.log(`[Instagram OAuth] Callback endpoint hit by Meta redirect. Query params: code=${code ? '[PRESENT]' : 'absent'}, state=${state ? '[PRESENT]' : 'absent'}, error=${error || 'none'}`);
+  console.log(`[Instagram OAuth] Client redirect base URL: ${clientUrl}`);
 
   // ── User denied authorization ──────────────────────────────────────
   if (error) {
     console.log(`[Instagram OAuth] Authorization denied by user or Meta: ${error_reason || error}`);
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     return res.redirect(
       `${clientUrl}/dashboard/instagram?connected=false&error=${encodeURIComponent(error_reason || error)}`
     );
@@ -123,7 +133,7 @@ exports.oauthCallback = async (req, res) => {
 
   // ── Extract userId from state (state = randomHex_userId) ───────────
   const parts = state.split('_');
-  const userId = parts[parts.length - 1];
+  const userId = parts.slice(1).join('_');
 
   // ── CSRF state validation ──────────────────────────────────────────
   const storedState = retrieveAndClearOAuthState(userId);
@@ -131,26 +141,24 @@ exports.oauthCallback = async (req, res) => {
     console.error(`[Instagram OAuth] CSRF state validation failed for user: ${userId}`);
     return res.status(HTTP_STATUS.BAD_REQUEST).json({
       success: false,
-      message: 'OAuth state validation failed. This request may have been tampered with.',
+      message: 'OAuth state validation failed. This request may have been tampered with or expired.',
     });
   }
 
   try {
-    console.log(`[Instagram OAuth] CSRF state verified. Exchanging authorization code for token...`);
+    console.log(`[Instagram OAuth] CSRF state verified for user ${userId}. Exchanging authorization code for token...`);
     // ── Token exchange ───────────────────────────────────────────────
     const tokenData = await InstagramOAuthService.exchangeCodeForToken(code);
 
-    console.log(`[Instagram OAuth] Token exchange successful. Saving encrypted connection to database...`);
+    console.log(`[Instagram OAuth] Token exchange successful. Saving encrypted connection for user ${userId}...`);
     // ── Persist encrypted token ──────────────────────────────────────
     await InstagramOAuthService.saveConnection(userId, tokenData);
 
-    console.log(`[Instagram OAuth] Connection saved successfully. Redirecting user back to frontend dashboard...`);
+    console.log(`[Instagram OAuth] Connection saved successfully. Redirecting user to ${clientUrl}/dashboard/instagram?connected=true`);
     // ── Redirect to frontend with success flag ───────────────────────
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     res.redirect(`${clientUrl}/dashboard/instagram?connected=true`);
   } catch (err) {
     console.error(`[Instagram OAuth] Callback processing error: ${err.message}`);
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     res.redirect(
       `${clientUrl}/dashboard/instagram?connected=false&error=${encodeURIComponent(err.message)}`
     );

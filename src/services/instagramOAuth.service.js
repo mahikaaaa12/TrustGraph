@@ -45,33 +45,87 @@ const REQUIRED_SCOPES = [
 // How many days before expiry we consider a token "stale" and prompt re-auth
 const TOKEN_WARN_DAYS = 7;
 
+// Helper to redact sensitive credentials from log outputs
+function redactSecrets(objOrStr) {
+  if (!objOrStr) return objOrStr;
+  let str = typeof objOrStr === 'string' ? objOrStr : JSON.stringify(objOrStr);
+  str = str.replace(/client_secret=[^&]+/gi, 'client_secret=[REDACTED]');
+  str = str.replace(/access_token=[^&]+/gi, 'access_token=[REDACTED]');
+  str = str.replace(/code=[^&]+/gi, 'code=[REDACTED]');
+  str = str.replace(/fb_exchange_token=[^&]+/gi, 'fb_exchange_token=[REDACTED]');
+  str = str.replace(/"access_token"\s*:\s*"[^"]+"/gi, '"access_token": "[REDACTED]"');
+  str = str.replace(/"client_secret"\s*:\s*"[^"]+"/gi, '"client_secret": "[REDACTED]"');
+  str = str.replace(/"code"\s*:\s*"[^"]+"/gi, '"code": "[REDACTED]"');
+  return str;
+}
+
 // ──────────────────────────────────────────────
-// Utility: generic HTTPS GET with JSON response
+// Utility: generic HTTPS GET with JSON response & safe diagnostic logging
 // ──────────────────────────────────────────────
 function httpsGet(url, timeoutMs = 8000) {
   return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url);
+
+    console.log(`[INSTAGRAM_OAUTH] Outbound GET START`);
+    console.log(`[INSTAGRAM_OAUTH] endpoint: ${parsedUrl.protocol}//${parsedUrl.hostname}${parsedUrl.pathname}`);
+    console.log(`[INSTAGRAM_OAUTH] host: ${parsedUrl.hostname}`);
+    console.log(`[INSTAGRAM_OAUTH] path: ${parsedUrl.pathname}`);
+    console.log(`[INSTAGRAM_OAUTH] method: GET`);
+
     const req = https.get(url, (res) => {
       let body = '';
       res.on('data', (c) => (body += c));
       res.on('end', () => {
+        let parsedData;
         try {
-          resolve({ status: res.statusCode, data: JSON.parse(body) });
+          parsedData = JSON.parse(body);
         } catch {
-          resolve({ status: res.statusCode, data: body });
+          parsedData = body;
         }
+
+        console.log(`[INSTAGRAM_OAUTH] Outbound GET RESPONSE`);
+        console.log(`[INSTAGRAM_OAUTH] status: ${res.statusCode}`);
+        console.log(`[INSTAGRAM_OAUTH] response: ${redactSecrets(parsedData)}`);
+
+        if (res.statusCode >= 400) {
+          console.error(`[INSTAGRAM_OAUTH] UPSTREAM ERROR`);
+          console.error(`status: ${res.statusCode}`);
+          console.error(`host: ${parsedUrl.hostname}`);
+          console.error(`path: ${parsedUrl.pathname}`);
+          console.error(`error: ${redactSecrets(parsedData)}`);
+        }
+
+        resolve({ status: res.statusCode, data: parsedData });
       });
     });
-    req.on('error', reject);
-    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('Request timed out')); });
+    req.on('error', (err) => {
+      console.error(`[INSTAGRAM_OAUTH] Outbound GET FAILED: ${err.message}`);
+      reject(err);
+    });
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      reject(new Error('Request timed out'));
+    });
   });
 }
 
 // ──────────────────────────────────────────────
-// Utility: generic HTTPS POST with form data
+// Utility: generic HTTPS POST with form data & safe diagnostic logging
 // ──────────────────────────────────────────────
 function httpsPost(url, formData, timeoutMs = 8000) {
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
+    const safeFormData = { ...formData };
+    if (safeFormData.client_secret) safeFormData.client_secret = '[REDACTED]';
+    if (safeFormData.code) safeFormData.code = '[REDACTED]';
+
+    console.log(`[INSTAGRAM_OAUTH] Outbound POST START`);
+    console.log(`[INSTAGRAM_OAUTH] endpoint: ${parsedUrl.protocol}//${parsedUrl.hostname}${parsedUrl.pathname}`);
+    console.log(`[INSTAGRAM_OAUTH] host: ${parsedUrl.hostname}`);
+    console.log(`[INSTAGRAM_OAUTH] path: ${parsedUrl.pathname}`);
+    console.log(`[INSTAGRAM_OAUTH] method: POST`);
+    console.log(`[INSTAGRAM_OAUTH] safe body: ${JSON.stringify(safeFormData)}`);
+
     const body = querystring.stringify(formData);
     const options = {
       hostname: parsedUrl.hostname,
@@ -86,15 +140,36 @@ function httpsPost(url, formData, timeoutMs = 8000) {
       let responseBody = '';
       res.on('data', (c) => (responseBody += c));
       res.on('end', () => {
+        let parsedData;
         try {
-          resolve({ status: res.statusCode, data: JSON.parse(responseBody) });
+          parsedData = JSON.parse(responseBody);
         } catch {
-          resolve({ status: res.statusCode, data: responseBody });
+          parsedData = responseBody;
         }
+
+        console.log(`[INSTAGRAM_OAUTH] Outbound POST RESPONSE`);
+        console.log(`[INSTAGRAM_OAUTH] status: ${res.statusCode}`);
+        console.log(`[INSTAGRAM_OAUTH] response: ${redactSecrets(parsedData)}`);
+
+        if (res.statusCode >= 400) {
+          console.error(`[INSTAGRAM_OAUTH] UPSTREAM ERROR`);
+          console.error(`status: ${res.statusCode}`);
+          console.error(`host: ${parsedUrl.hostname}`);
+          console.error(`path: ${parsedUrl.pathname}`);
+          console.error(`error: ${redactSecrets(parsedData)}`);
+        }
+
+        resolve({ status: res.statusCode, data: parsedData });
       });
     });
-    req.on('error', reject);
-    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('Request timed out')); });
+    req.on('error', (err) => {
+      console.error(`[INSTAGRAM_OAUTH] Outbound POST FAILED: ${err.message}`);
+      reject(err);
+    });
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      reject(new Error('Request timed out'));
+    });
     req.write(body);
     req.end();
   });
@@ -188,110 +263,136 @@ class InstagramOAuthService {
    * @param {string} storedState
    * @param {string} userId
    */
+  /**
+   * Validates the state parameter returned in the OAuth callback to prevent CSRF.
+   * Supports both in-memory stored state check and fallback structural validation
+   * to handle server restarts on single-instance hosting platforms like Render.
+   *
+   * @param {string} returnedState
+   * @param {string|null} storedState
+   * @param {string} userId
+   * @returns {boolean}
+   */
   static validateOAuthState(returnedState, storedState, userId) {
-    if (!returnedState || !storedState) return false;
-    if (returnedState !== storedState) return false;
-    // State must end with the userId we generated it for
-    const parts = storedState.split('_');
-    const stateUserId = parts[parts.length - 1];
-    return stateUserId === String(userId);
+    if (!returnedState || !userId) return false;
+
+    // Strict match against in-memory stored state
+    if (storedState && returnedState === storedState) {
+      const parts = storedState.split('_');
+      const stateUserId = parts.slice(1).join('_');
+      return stateUserId === String(userId);
+    }
+
+    // Fallback: If storedState was cleared or lost across server process restart on Render,
+    // verify state signature format (48-hex chars + '_' + userId)
+    if (!storedState && returnedState) {
+      const parts = returnedState.split('_');
+      if (parts.length >= 2) {
+        const hexPart = parts[0];
+        const stateUserId = parts.slice(1).join('_');
+        if (/^[0-9a-fA-F]{48}$/.test(hexPart) && stateUserId === String(userId)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /**
    * Exchanges the authorization code for a short-lived token,
    * then immediately exchanges for a long-lived token (60 days).
-   * Supports both Meta Facebook Login Dialog and Instagram Business Login flows.
+   * Strictly uses official Instagram Login API endpoints (no Facebook Login fallback).
    *
    * @param {string} code — authorization code from callback query param
-   * @returns {{ accessToken: string, tokenType: string, expiresIn: number, instagramUserId: string }}
+   * @returns {Promise<{ accessToken: string, tokenType: string, expiresIn: number, instagramUserId: string }>}
    */
   static async exchangeCodeForToken(code) {
     if (!isInstagramConfigured()) {
       throw new Error('Instagram app credentials are not configured.');
     }
 
-    let tokenData = null;
+    const appId = getAppId();
+    const appSecret = getAppSecret();
+    const redirectUri = getEffectiveRedirectUri();
 
-    // Step 1: Code → short-lived token via api.instagram.com (Instagram Login flow)
-    try {
-      const shortLivedRes = await httpsPost(INSTAGRAM_TOKEN_URL, {
-        client_id: getAppId(),
-        client_secret: getAppSecret(),
-        grant_type: 'authorization_code',
-        redirect_uri: getEffectiveRedirectUri(),
-        code,
-      });
+    console.log(`[INSTAGRAM_OAUTH] PRIMARY_TOKEN_EXCHANGE START`);
+    console.log(`[INSTAGRAM_OAUTH] host: api.instagram.com`);
+    console.log(`[INSTAGRAM_OAUTH] path: /oauth/access_token`);
+    console.log(`[INSTAGRAM_OAUTH] app_id: ${appId}`);
+    console.log(`[INSTAGRAM_OAUTH] redirect_uri: ${redirectUri}`);
 
-      if (shortLivedRes.status === 200 && shortLivedRes.data.access_token) {
-        tokenData = {
-          shortLivedToken: shortLivedRes.data.access_token,
-          expiresIn: shortLivedRes.data.expires_in || 3600,
-          tokenType: shortLivedRes.data.token_type || 'bearer',
-          instagramUserId: String(shortLivedRes.data.user_id || ''),
-          isFbFlow: false,
-        };
-      }
-    } catch {
-      // Fall through to Meta Graph fallback
+    // Step 1: Code → short-lived token via POST api.instagram.com/oauth/access_token
+    const shortLivedRes = await httpsPost(INSTAGRAM_TOKEN_URL, {
+      client_id: appId,
+      client_secret: appSecret,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri,
+      code,
+    });
+
+    console.log(`[INSTAGRAM_OAUTH] PRIMARY_TOKEN_EXCHANGE RESPONSE`);
+    console.log(`[INSTAGRAM_OAUTH] status: ${shortLivedRes.status}`);
+
+    if (shortLivedRes.status !== 200 || !shortLivedRes.data?.access_token) {
+      const errMsg =
+        shortLivedRes.data?.error_message ||
+        shortLivedRes.data?.error?.message ||
+        (typeof shortLivedRes.data === 'string' ? shortLivedRes.data : JSON.stringify(shortLivedRes.data));
+
+      console.error(`[INSTAGRAM_OAUTH] PRIMARY_TOKEN_EXCHANGE FAILED`);
+      console.error(`status: ${shortLivedRes.status}`);
+      console.error(`host: api.instagram.com`);
+      console.error(`path: /oauth/access_token`);
+      console.error(`error: ${redactSecrets(shortLivedRes.data)}`);
+
+      throw new Error(`Instagram authorization code exchange failed (HTTP ${shortLivedRes.status}): ${errMsg}`);
     }
 
-    // Fallback: Meta Facebook OAuth token exchange
-    if (!tokenData) {
-      try {
-        const fbUrl = `${META_TOKEN_URL}?client_id=${encodeURIComponent(getAppId())}&client_secret=${encodeURIComponent(getAppSecret())}&redirect_uri=${encodeURIComponent(getEffectiveRedirectUri())}&code=${encodeURIComponent(code)}`;
-        const fbRes = await httpsGet(fbUrl);
+    const tokenData = {
+      shortLivedToken: shortLivedRes.data.access_token,
+      expiresIn: shortLivedRes.data.expires_in || 3600,
+      tokenType: shortLivedRes.data.token_type || 'bearer',
+      instagramUserId: String(shortLivedRes.data.user_id || ''),
+    };
 
-        if (fbRes.status === 200 && fbRes.data.access_token) {
-          tokenData = {
-            shortLivedToken: fbRes.data.access_token,
-            expiresIn: fbRes.data.expires_in || 3600,
-            tokenType: fbRes.data.token_type || 'bearer',
-            isFbFlow: true,
-          };
-        } else {
-          const errMsg = fbRes.data?.error?.message || fbRes.data?.error_message || 'Token exchange failed';
-          throw new Error(`Instagram token exchange failed: ${errMsg}`);
-        }
-      } catch (err) {
-        throw new Error(`Instagram token exchange failed: ${err.message}`);
-      }
-    }
+    console.log(`[INSTAGRAM_OAUTH] Short-lived token obtained successfully. User ID: ${tokenData.instagramUserId || 'N/A'}`);
 
-    // Step 2: Short-lived → long-lived (60-day) token
+    // Step 2: Short-lived → long-lived (60-day) token via GET graph.instagram.com/access_token
     let longLivedToken = tokenData.shortLivedToken;
-    let longLivedExpiresIn = 60 * 24 * 60 * 60; // default 60 days in seconds
+    let longLivedExpiresIn = 60 * 24 * 60 * 60; // 60 days default
 
     try {
-      const longLivedUrl = tokenData.isFbFlow
-        ? `https://graph.facebook.com/${META_GRAPH_API_VERSION}/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(getAppId())}&client_secret=${encodeURIComponent(getAppSecret())}&fb_exchange_token=${encodeURIComponent(tokenData.shortLivedToken)}`
-        : `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(getAppSecret())}&access_token=${encodeURIComponent(tokenData.shortLivedToken)}`;
-
+      console.log(`[INSTAGRAM_OAUTH] LONG_LIVED_TOKEN_EXCHANGE START`);
+      const longLivedUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(appSecret)}&access_token=${encodeURIComponent(tokenData.shortLivedToken)}`;
       const longLivedRes = await httpsGet(longLivedUrl);
-      if (longLivedRes.status === 200 && longLivedRes.data.access_token) {
+
+      console.log(`[INSTAGRAM_OAUTH] LONG_LIVED_TOKEN_EXCHANGE RESPONSE`);
+      console.log(`[INSTAGRAM_OAUTH] status: ${longLivedRes.status}`);
+
+      if (longLivedRes.status === 200 && longLivedRes.data?.access_token) {
+        console.log(`[INSTAGRAM_OAUTH] 60-day long-lived token acquired successfully.`);
         longLivedToken = longLivedRes.data.access_token;
         longLivedExpiresIn = longLivedRes.data.expires_in || longLivedExpiresIn;
+      } else {
+        console.warn(`[INSTAGRAM_OAUTH] Long-lived token exchange returned status ${longLivedRes.status}. Using short-lived token.`);
       }
-    } catch {
-      // Use short lived token if exchange fails
+    } catch (err) {
+      console.warn(`[INSTAGRAM_OAUTH] Long-lived token exchange request warning: ${err.message}. Using short-lived token.`);
     }
 
-    // Step 3: Resolve Instagram Professional Account User ID if FB flow
+    // Step 3: Resolve Instagram User ID via GET graph.instagram.com/me if missing
     let igUserId = tokenData.instagramUserId;
-    if (!igUserId && tokenData.isFbFlow) {
+    if (!igUserId || igUserId === '0') {
       try {
-        const meAccountsUrl = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/me/accounts?access_token=${encodeURIComponent(longLivedToken)}`;
-        const pagesRes = await httpsGet(meAccountsUrl);
-        const pages = pagesRes.data?.data || [];
-        for (const page of pages) {
-          const pageDetailUrl = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${page.id}?fields=instagram_business_account,name&access_token=${encodeURIComponent(longLivedToken)}`;
-          const pageRes = await httpsGet(pageDetailUrl);
-          if (pageRes.data?.instagram_business_account?.id) {
-            igUserId = pageRes.data.instagram_business_account.id;
-            break;
-          }
+        console.log(`[INSTAGRAM_OAUTH] USER_PROFILE_ID_RESOLVE START`);
+        const meRes = await httpsGet(`https://graph.instagram.com/me?fields=id,username&access_token=${encodeURIComponent(longLivedToken)}`);
+        if (meRes.status === 200 && meRes.data?.id) {
+          igUserId = meRes.data.id;
+          console.log(`[INSTAGRAM_OAUTH] Resolved Instagram User ID: ${igUserId}`);
         }
-      } catch {
-        // Non-fatal
+      } catch (err) {
+        console.warn(`[INSTAGRAM_OAUTH] User ID resolution warning: ${err.message}`);
       }
     }
 

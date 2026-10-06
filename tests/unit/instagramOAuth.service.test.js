@@ -101,13 +101,25 @@ describe('InstagramOAuthService', () => {
 
   // ── 3. CSRF state validation ───────────────────────────────────────
   describe('validateOAuthState()', () => {
-    it('returns true for matching state and userId', () => {
+    it('returns true for matching state and userId when in stored state', () => {
       const userId = 'user999';
       const state = crypto.randomBytes(24).toString('hex') + '_' + userId;
       expect(InstagramOAuthService.validateOAuthState(state, state, userId)).toBe(true);
     });
 
-    it('returns false for mismatched states', () => {
+    it('returns true using structural fallback when storedState is null but state signature is valid', () => {
+      const userId = '654321654321654321654321';
+      const state = crypto.randomBytes(24).toString('hex') + '_' + userId;
+      expect(InstagramOAuthService.validateOAuthState(state, null, userId)).toBe(true);
+    });
+
+    it('returns false when storedState is null and state format is invalid', () => {
+      const userId = 'user123';
+      const invalidState = 'short_invalid_' + userId;
+      expect(InstagramOAuthService.validateOAuthState(invalidState, null, userId)).toBe(false);
+    });
+
+    it('returns false for mismatched states when storedState exists', () => {
       const state = crypto.randomBytes(24).toString('hex') + '_user1';
       const other = crypto.randomBytes(24).toString('hex') + '_user1';
       expect(InstagramOAuthService.validateOAuthState(state, other, 'user1')).toBe(false);
