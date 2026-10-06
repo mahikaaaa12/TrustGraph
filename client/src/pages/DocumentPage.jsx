@@ -20,6 +20,7 @@ import {
   ShieldAlert,
   FileCheck,
 } from 'lucide-react';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 
 export default function DocumentPage() {
   const { showToast } = useErrorLogs();
@@ -184,26 +185,10 @@ export default function DocumentPage() {
           )}
 
           {loading && (
-            <div className="p-4 bg-[#F8F7F4] rounded-xl border border-[#E5E7EB] space-y-3">
-              <div className="flex justify-between text-xs font-mono">
-                <span className="text-[#7F8F73] font-semibold">Executing Pipeline Steps...</span>
-                <span className="text-[#2B2B2B] font-bold">{Math.round((scanStep / 6) * 100)}%</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
-                {stepsList.map((stepName, idx) => (
-                  <div key={idx} className="flex items-center space-x-1.5">
-                    {scanStep > idx + 1 ? (
-                      <Check className="w-3.5 h-3.5 text-[#5B8C5A]" />
-                    ) : scanStep === idx + 1 ? (
-                      <Loader2 className="w-3.5 h-3.5 text-[#8E9A7D] animate-spin" />
-                    ) : (
-                      <span className="w-3.5 h-3.5 rounded-full border border-[#E5E7EB] inline-block" />
-                    )}
-                    <span className={scanStep > idx ? 'text-[#2B2B2B] font-medium' : 'text-[#9CA3AF]'}>{stepName}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <AnalysisLoader
+              message="Analyzing Document Security & AI Generation..."
+              subMessage="TrustGraph is scanning text structures, PII secrets, and synthetic AI generation markers."
+            />
           )}
 
           <button

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useErrorLogs } from '../context/ErrorLogContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 import {
   Play,
   Shield,
@@ -543,16 +544,25 @@ export default function SimulatorPage() {
 
             {/* Live Result View (5 Columns) */}
             <div className="lg:col-span-5 space-y-4">
-              {/* Fallback Active Banner */}
-              {decisionResult?.isFallback && (
-                <div className="p-4 bg-[#D9A441]/15 border border-[#D9A441] rounded-2xl flex items-start space-x-3 text-xs">
-                  <AlertTriangle className="w-5 h-5 text-[#D9A441] flex-shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="text-[#2B2B2B] block">ML model unavailable — deterministic fallback active.</strong>
-                    <span className="text-[#6B7280]">System automatically enforces safety review rules.</span>
-                  </div>
-                </div>
+              {analyzing && (
+                <AnalysisLoader
+                  message="Evaluating Risk Decision Pipeline..."
+                  subMessage="Processing transaction telemetry against ML ensemble models, graph risk signals, and policy engine..."
+                />
               )}
+
+              {!analyzing && (
+                <>
+                  {/* Fallback Active Banner */}
+                  {decisionResult?.isFallback && (
+                    <div className="p-4 bg-[#D9A441]/15 border border-[#D9A441] rounded-2xl flex items-start space-x-3 text-xs">
+                      <AlertTriangle className="w-5 h-5 text-[#D9A441] flex-shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-[#2B2B2B] block">ML model unavailable — deterministic fallback active.</strong>
+                        <span className="text-[#6B7280]">System automatically enforces safety review rules.</span>
+                      </div>
+                    </div>
+                  )}
 
               {/* Decision Hero Card */}
               <div className={`p-6 bg-white rounded-2xl border ${badge.border} shadow-xs space-y-4`}>
@@ -626,6 +636,8 @@ export default function SimulatorPage() {
                   })}
                 </div>
               </div>
+                </>
+              )}
             </div>
           </div>
         </>
@@ -695,8 +707,17 @@ export default function SimulatorPage() {
             </form>
           </div>
 
+          {/* Stream Loader */}
+          {streamLoading && (
+            <AnalysisLoader
+              message={`Simulating ${scenario} Event Stream...`}
+              subMessage={`Evaluating ${streamCount} synthetic attack events through multi-model decision pipeline...`}
+              batch={true}
+            />
+          )}
+
           {/* Stream Summary Table */}
-          {simulationData && (
+          {!streamLoading && simulationData && (
             <div className="p-6 bg-white border border-[#E5E7EB] rounded-2xl shadow-xs space-y-4">
               <div className="flex justify-between items-center border-b border-[#E5E7EB] pb-3">
                 <h3 className="text-base font-bold text-[#2B2B2B]">Live Simulated Telemetry Event Stream</h3>

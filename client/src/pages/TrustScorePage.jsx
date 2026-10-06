@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useErrorLogs } from '../context/ErrorLogContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 import {
   Shield,
   Calculator,
@@ -241,7 +242,16 @@ export default function TrustScorePage() {
             </form>
           </div>
 
-          {/* Core Decision Hero Card */}
+          {loading && (
+            <AnalysisLoader
+              message="Evaluating Risk Decision Pipeline..."
+              subMessage="Processing transaction features through GBDT ensemble, graph signals, expected loss, and policy engine..."
+            />
+          )}
+
+          {!loading && (
+            <>
+              {/* Core Decision Hero Card */}
           <div className={`p-6 rounded-2xl bg-white border ${badge.border} shadow-xs space-y-4`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E7EB] pb-4">
               <div className="flex items-center space-x-3">
@@ -333,6 +343,8 @@ export default function TrustScorePage() {
               })}
             </div>
           </div>
+            </>
+          )}
         </>
       ) : (
         /* Benchmark Model Comparison Tab */

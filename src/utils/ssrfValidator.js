@@ -142,6 +142,11 @@ class SsrfValidator {
 
       return { isSafe: true, resolvedIps: addresses };
     } catch (err) {
+      // If DNS resolution fails (e.g. ENOTFOUND for unregistered/suspicious public domain), 
+      // it is safe from an SSRF infrastructure attack point of view. Allow WebsiteService to evaluate domain risk.
+      if (err.code === 'ENOTFOUND' || err.code === 'ENODATA' || err.code === 'SERVFAIL') {
+        return { isSafe: true, resolvedIps: [] };
+      }
       return { isSafe: false, resolvedIps: [], error: `DNS resolution error: ${err.message}` };
     }
   }

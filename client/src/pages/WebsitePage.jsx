@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import api from '../services/api';
 import { useErrorLogs } from '../context/ErrorLogContext';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 import {
   Globe,
   Search,
@@ -95,7 +96,14 @@ export default function WebsitePage() {
         </form>
       </div>
 
-      {analysisResult && (
+      {loading && (
+        <AnalysisLoader
+          message="Inspecting Website Security & TLS Socket..."
+          subMessage="Evaluating SSL certificate validity, WHOIS domain telemetry, DNS records, and phishing threat signals..."
+        />
+      )}
+
+      {!loading && analysisResult && (
         <div className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="p-5 bg-white border border-[#E5E7EB] rounded-2xl shadow-xs">

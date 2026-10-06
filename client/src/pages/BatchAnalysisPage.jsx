@@ -22,6 +22,7 @@ import {
   Eye,
   X,
 } from 'lucide-react';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 
 export default function BatchAnalysisPage() {
   const { showToast } = useErrorLogs();
@@ -213,8 +214,17 @@ export default function BatchAnalysisPage() {
         </motion.div>
       )}
 
+      {/* Loading State Display */}
+      {loading && (
+        <AnalysisLoader
+          batch={true}
+          message={`Analyzing ${files.length || 'batch'} content items...`}
+          subMessage="TrustGraph is processing your submitted batch files and content manifest."
+        />
+      )}
+
       {/* Results View */}
-      {batchData && (
+      {!loading && batchData && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

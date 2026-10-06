@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useErrorLogs } from '../context/ErrorLogContext';
 import { motion } from 'framer-motion';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 import {
   Share2,
   Search,
@@ -187,7 +188,16 @@ export default function InvestigationPage() {
         </div>
       </div>
 
-      {/* KPI Stats Grid */}
+      {loading && (
+        <AnalysisLoader
+          message="Traversing Graph Abuse Ring & Subgraph..."
+          subMessage="Analyzing multi-entity topological relationships, shared hardware hubs, and circular transfers..."
+        />
+      )}
+
+      {!loading && (
+        <>
+          {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="p-5 bg-white border border-[#E5E7EB] rounded-2xl shadow-xs space-y-1">
           <span className="text-[11px] font-semibold text-[#9CA3AF] uppercase">Graph Risk Score</span>
@@ -357,6 +367,8 @@ export default function InvestigationPage() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 {
-  "pipelineRunAt": "2026-10-06T03:58:32.734Z",
+  "pipelineRunAt": "2026-10-06T17:50:09.989Z",
   "datasetMetadata": {
     "version": "synthetic-tx-risk-v1.0.0",
     "totalSamples": 1500,
@@ -10,84 +10,86 @@
     "isSynthetic": true
   },
   "featureVersion": "features-v1.0.0",
+  "scalerVersion": "scaler-v1.0.0",
+  "thresholdVersion": "thresholds-v1.0.0",
   "models": {
     "baseline_logistic_regression": {
       "modelVersion": "logreg-risk-v1.0.0",
       "optimalThreshold": 0.15,
       "training": {
         "epochsTrained": 70,
-        "finalLoss": 0.01353,
+        "finalLoss": 0.01354,
         "lossHistory": [
-          0.32516,
-          0.13388,
-          0.08656,
-          0.06511,
+          0.32457,
+          0.134,
+          0.08658,
+          0.0651,
           0.05293,
-          0.0451,
-          0.0397,
-          0.03572,
+          0.04512,
+          0.03969,
+          0.03571,
           0.03268,
-          0.03028,
+          0.03029,
           0.02836,
           0.02677,
-          0.02544,
-          0.02431,
+          0.02547,
+          0.02433,
           0.02335,
-          0.02251,
-          0.02178,
+          0.02252,
+          0.02179,
           0.02113,
-          0.02054,
-          0.02003,
-          0.01957,
-          0.01916,
-          0.01877,
-          0.01841,
-          0.0181,
+          0.02055,
+          0.02004,
+          0.01956,
+          0.01917,
+          0.01879,
+          0.01844,
+          0.01811,
           0.01782,
-          0.01754,
-          0.0173,
-          0.01707,
-          0.01685,
-          0.01666,
-          0.01647,
-          0.0163,
-          0.01613,
-          0.01598,
+          0.01755,
+          0.01731,
+          0.01708,
+          0.01687,
+          0.01667,
+          0.01648,
+          0.01631,
+          0.01615,
+          0.01599,
           0.01584,
-          0.0157,
+          0.01571,
           0.01558,
-          0.01545,
-          0.01534,
-          0.01523,
-          0.01513,
-          0.01503,
-          0.01495,
-          0.01485,
-          0.01477,
-          0.01469,
-          0.01462,
-          0.01454,
-          0.01447,
+          0.01547,
+          0.01536,
+          0.01525,
+          0.01514,
+          0.01505,
+          0.01496,
+          0.01486,
+          0.01478,
+          0.0147,
+          0.01463,
+          0.01455,
+          0.01448,
           0.01441,
           0.01435,
-          0.01428,
+          0.01429,
           0.01423,
-          0.01416,
+          0.01417,
           0.01412,
-          0.01406,
+          0.01407,
           0.01401,
-          0.01396,
+          0.01397,
           0.01392,
-          0.01387,
+          0.01388,
           0.01383,
-          0.01379,
-          0.01374,
-          0.01371,
-          0.01367,
-          0.01364,
-          0.0136,
+          0.0138,
+          0.01375,
+          0.01372,
+          0.01368,
+          0.01365,
+          0.01361,
           0.01357,
-          0.01353
+          0.01354
         ]
       },
       "testEvaluation": {
@@ -109,7 +111,8 @@
           "f1Score": 1,
           "falsePositiveRate": 0,
           "falseNegativeRate": 0,
-          "rocAuc": 0.9996
+          "rocAuc": 0.9996,
+          "prAuc": 0.0803
         },
         "financialRisk": {
           "totalTransactionVolume": 101228.15,
@@ -118,6 +121,82 @@
           "assumedFpCostUSD": 15,
           "assumedChargebackFeeUSD": 25
         }
+      },
+      "calibration": {
+        "ece": 0.0092,
+        "brierScore": 0.0001,
+        "bins": [
+          {
+            "range": "0.0 - 0.1",
+            "count": 197,
+            "avgConfidence": 0.0105,
+            "avgAccuracy": 0,
+            "gap": 0.0105
+          },
+          {
+            "range": "0.1 - 0.2",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.2 - 0.3",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.3 - 0.4",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.4 - 0.5",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.5 - 0.6",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.6 - 0.7",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.7 - 0.8",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.8 - 0.9",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.9 - 1.0",
+            "count": 28,
+            "avgConfidence": 0.9999,
+            "avgAccuracy": 1,
+            "gap": 0.0001
+          }
+        ]
       }
     },
     "primary_gradient_boosted_trees": {
@@ -199,7 +278,8 @@
           "f1Score": 1,
           "falsePositiveRate": 0,
           "falseNegativeRate": 0,
-          "rocAuc": 0.5
+          "rocAuc": 0.5,
+          "prAuc": 0.9531
         },
         "financialRisk": {
           "totalTransactionVolume": 101228.15,
@@ -208,12 +288,89 @@
           "assumedFpCostUSD": 15,
           "assumedChargebackFeeUSD": 25
         }
+      },
+      "calibration": {
+        "ece": 0.0112,
+        "brierScore": 0.0003,
+        "bins": [
+          {
+            "range": "0.0 - 0.1",
+            "count": 197,
+            "avgConfidence": 0.0061,
+            "avgAccuracy": 0,
+            "gap": 0.0061
+          },
+          {
+            "range": "0.1 - 0.2",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.2 - 0.3",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.3 - 0.4",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.4 - 0.5",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.5 - 0.6",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.6 - 0.7",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.7 - 0.8",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.8 - 0.9",
+            "count": 0,
+            "avgConfidence": 0,
+            "avgAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "0.9 - 1.0",
+            "count": 28,
+            "avgConfidence": 0.9525,
+            "avgAccuracy": 1,
+            "gap": 0.0475
+          }
+        ]
       }
     }
   },
   "winner": "primary_gradient_boosted_trees",
   "comparisonSummary": {
     "rocAucDelta": -0.4996,
+    "prAucDelta": 0.8728,
     "f1ScoreDelta": 0,
     "financialLossDeltaUSD": 0
   }

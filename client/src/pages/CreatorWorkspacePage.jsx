@@ -33,6 +33,7 @@ import {
   Share2,
   Briefcase,
 } from 'lucide-react';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 
 export default function CreatorWorkspacePage() {
   const { showToast } = useErrorLogs();
@@ -477,8 +478,16 @@ export default function CreatorWorkspacePage() {
         </div>
       </div>
 
+      {/* Loading State Display */}
+      {loading && (
+        <AnalysisLoader
+          message="Verifying Content Package..."
+          subMessage="TrustGraph is executing multi-modal forensic, text, link, and document verification."
+        />
+      )}
+
       {/* UNIFIED RESULTS PAGE SECTION */}
-      {analysisResult && (
+      {!loading && analysisResult && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}

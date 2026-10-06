@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Sparkles,
 } from 'lucide-react';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 
 const SCORE_COLOR = (score) => {
   if (score >= 75) return '#8E9A7D';
@@ -313,8 +314,16 @@ export default function PostVerificationPage() {
         </motion.form>
       )}
 
+      {/* Loading State Display */}
+      {loading && (
+        <AnalysisLoader
+          message="Analyzing post content..."
+          subMessage="TrustGraph is verifying your post image, caption, external links, and supporting documents."
+        />
+      )}
+
       {/* Result Display Section */}
-      {result && (
+      {!loading && result && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Main Score Banner */}
           <div className="p-8 rounded-3xl border bg-white shadow-sm text-center relative overflow-hidden" style={{ borderColor: SCORE_COLOR(result.contentTrustScore) + '40' }}>

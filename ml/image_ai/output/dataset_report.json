@@ -1,0 +1,19 @@
+{
+  "datasetDir": "ml\\image_ai\\dataset_raw",
+  "status": "DATASET_NOT_FOUND",
+  "totalImages": 0,
+  "classCounts": {
+    "REAL": 0,
+    "AI_GENERATED": 0
+  },
+  "validCount": 0,
+  "corruptCount": 0,
+  "unsupportedCount": 0,
+  "formats": {},
+  "dimensions": {
+    "min": null,
+    "max": null,
+    "sample": []
+  },
+  "classBalanceRatio": 0.0
+}

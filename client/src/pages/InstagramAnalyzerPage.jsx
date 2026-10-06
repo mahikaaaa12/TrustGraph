@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 import {
   Instagram,
   Link2,
@@ -520,6 +521,7 @@ export default function InstagramAnalyzerPage() {
   // ── Analyze selected or manual content ────────────────────────────
   const handleAnalyze = async () => {
     setAnalyzing(true);
+    setResult(null);
     setError('');
     try {
       const payload = selectedMedia
@@ -582,13 +584,21 @@ export default function InstagramAnalyzerPage() {
         )}
       </AnimatePresence>
 
+      {/* Analysis Loader */}
+      {analyzing && (
+        <AnalysisLoader
+          message="Analyzing Instagram Content..."
+          subMessage="Inspecting image forensics, caption writing signals, link safety, and content trust score..."
+        />
+      )}
+
       {/* Result view */}
-      {mode === 'result' && result && (
+      {!analyzing && mode === 'result' && result && (
         <AnalysisResult result={result} onReset={handleReset} />
       )}
 
       {/* Main content */}
-      {mode !== 'result' && (
+      {!analyzing && mode !== 'result' && (
         <div className="space-y-5">
           {/* Step 1: Connection */}
           <div className="p-5 rounded-2xl border border-gray-200 bg-white shadow-sm">

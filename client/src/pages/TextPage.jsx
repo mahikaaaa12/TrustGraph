@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import api from '../services/api';
 import { useErrorLogs } from '../context/ErrorLogContext';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 import {
   Type,
   Search,
@@ -109,7 +110,14 @@ export default function TextPage() {
         </form>
       </div>
 
-      {analysisResult && (
+      {loading && (
+        <AnalysisLoader
+          message="Analyzing Text Authenticity & Perplexity..."
+          subMessage="Evaluating entropy heuristics, sentence burstiness, sentiment, and social engineering risk..."
+        />
+      )}
+
+      {!loading && analysisResult && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="p-5 bg-white border border-[#E5E7EB] rounded-2xl shadow-xs">

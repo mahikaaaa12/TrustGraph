@@ -78,6 +78,10 @@ const analysisSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
+    evidenceList: {
+      type: mongoose.Schema.Types.Mixed,
+      default: [],
+    },
     modelVersion: {
       type: String,
       default: '1.2.0-logistic-ensemble',

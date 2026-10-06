@@ -57,8 +57,9 @@ class ModelEvaluator {
     const falsePositiveRate = (fp + tn) > 0 ? fp / (fp + tn) : 0.0;
     const falseNegativeRate = (fn + tp) > 0 ? fn / (fn + tp) : 0.0;
 
-    // Calculate ROC-AUC via numerical trapezoidal integration across probability thresholds
+    // Calculate ROC-AUC and PR-AUC via numerical trapezoidal integration
     const rocAuc = this.computeRocAuc(scoredSamples);
+    const prAuc = this.computePrAuc(scoredSamples);
 
     return {
       modelVersion: model.modelVersion,
@@ -80,6 +81,7 @@ class ModelEvaluator {
         falsePositiveRate: parseFloat(falsePositiveRate.toFixed(4)),
         falseNegativeRate: parseFloat(falseNegativeRate.toFixed(4)),
         rocAuc: parseFloat(rocAuc.toFixed(4)),
+        prAuc: parseFloat(prAuc.toFixed(4)),
       },
       financialRisk: {
         totalTransactionVolume: parseFloat(totalTransactionVolume.toFixed(2)),
@@ -130,7 +132,52 @@ class ModelEvaluator {
       rocAuc += deltaFpr * avgTpr;
     }
 
-    return Math.max(0.5, Math.min(1.0, rocAuc));
+    return Math.max(0.0, Math.min(1.0, rocAuc));
+  }
+
+  /**
+   * Computes Area Under the Precision-Recall Curve (PR-AUC) using trapezoidal integration.
+   */
+  static computePrAuc(scoredSamples) {
+    const thresholds = [];
+    for (let t = 0.0; t <= 1.01; t += 0.02) {
+      thresholds.push(parseFloat(t.toFixed(2)));
+    }
+
+    const prPoints = [];
+    for (const thresh of thresholds) {
+      let tp = 0;
+      let fp = 0;
+      let tn = 0;
+      let fn = 0;
+
+      for (const s of scoredSamples) {
+        const pred = s.probability >= thresh ? 1 : 0;
+        if (s.actual === 1 && pred === 1) tp++;
+        else if (s.actual === 0 && pred === 1) fp++;
+        else if (s.actual === 0 && pred === 0) tn++;
+        else if (s.actual === 1 && pred === 0) fn++;
+      }
+
+      const precision = (tp + fp) > 0 ? tp / (tp + fp) : 1.0;
+      const recall = (tp + fn) > 0 ? tp / (tp + fn) : 0.0;
+
+      prPoints.push({ recall, precision });
+    }
+
+    // Sort by Recall ascending
+    prPoints.sort((a, b) => a.recall - b.recall || a.precision - b.precision);
+
+    let prAuc = 0.0;
+    for (let i = 1; i < prPoints.length; i++) {
+      const deltaRecall = prPoints[i].recall - prPoints[i - 1].recall;
+      const avgPrecision = (prPoints[i].precision + prPoints[i - 1].precision) / 2;
+      if (deltaRecall > 0) {
+        prAuc += deltaRecall * avgPrecision;
+      }
+    }
+
+    return Math.max(0.0, Math.min(1.0, prAuc));
   }
 
   /**

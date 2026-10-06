@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import api from '../services/api';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 import { Play, Clock, CheckCircle, AlertTriangle, Terminal } from 'lucide-react';
 
 const endpointsList = [
@@ -194,8 +195,15 @@ export default function ApiTesterPage() {
             )}
           </div>
 
-          {/* Response Payload Viewer */}
-          {responseResult && (
+          {/* Response Payload Viewer / Loader */}
+          {loading && (
+            <AnalysisLoader
+              message={`Executing ${selectedEndpoint.method} ${selectedEndpoint.url}...`}
+              subMessage="Waiting for API response payload and latency telemetry..."
+            />
+          )}
+
+          {!loading && responseResult && (
             <div className="p-6 bg-white border border-[#E5E7EB] rounded-2xl space-y-4 shadow-xs">
               <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-3">
                 <div className="flex items-center space-x-3">

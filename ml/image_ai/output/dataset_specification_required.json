@@ -1,0 +1,26 @@
+{
+  "pipelineStatus": "AWAITING_DATASET",
+  "requiredDatasetStructure": {
+    "dataset_dir": "ml\\image_ai\\dataset_raw",
+    "subfolders": [
+      "REAL",
+      "AI_GENERATED"
+    ],
+    "recommendedMinimumImagesPerClass": 5000,
+    "supportedFormats": [
+      "JPG",
+      "JPEG",
+      "PNG",
+      "WEBP"
+    ],
+    "recommendedMinResolution": "512x512"
+  },
+  "validationReport": {
+    "status": "DATASET_NOT_FOUND",
+    "totalFound": 0,
+    "classCounts": {
+      "REAL": 0,
+      "AI_GENERATED": 0
+    }
+  }
+}

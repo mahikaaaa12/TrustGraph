@@ -7,6 +7,8 @@ const Analysis = require('../models/Analysis');
 const History = require('../models/History');
 const AppError = require('../utils/appError');
 const { HTTP_STATUS } = require('../constants');
+const { EvidenceBuilder, EvidenceAggregator, CATEGORIES, ASSESSMENTS, SOURCES } = require('./evidence');
+const AIImageDetector = require('./aiImageDetector.service');
 
 /**
  * Service Layer for Advanced Image Forensics, EXIF Analysis, AI Image Detection, and ELA
@@ -102,33 +104,21 @@ class ImageService {
         type: 'editing_software_signature',
         severity: 'medium',
         confidence: 0.90,
-        weight: 0.25,
+        weight: 0.45,
         description: `EXIF Software tag matches editing tool: "${exifData.software}"`,
         source: 'metadata',
       });
     }
 
-    if (!exifData.hasExifData) {
-      manipulationScore += 15;
-      signals.push({
-        type: 'missing_exif',
-        severity: 'low',
-        confidence: 0.60,
-        weight: 0.10,
-        description: 'EXIF metadata has been removed or purged.',
-        source: 'metadata',
-      });
-    }
-
-    if (elaResults && elaResults.highErrorThresholdExceeded) {
-      manipulationScore += 30;
+    if (elaResults && elaResults.calculated && elaResults.highErrorThresholdExceeded) {
+      manipulationScore += 35;
       signals.push({
         type: 'ela_compression_anomaly',
         severity: 'medium',
         confidence: 0.75,
-        weight: 0.20,
+        weight: 0.35,
         description: `Error Level Analysis (ELA) detected compression grid anomalies (Avg Error: ${elaResults.averageErrorLevel}).`,
-        source: 'heuristic',
+        source: 'forensics',
       });
     }
 
@@ -150,16 +140,22 @@ class ImageService {
   }
 
   /**
-   * 4. AI-Generated Image Detection
+   * 4. Multi-Signal AI-Generated Image Detection
    */
-  static detectAiGeneratedImage(exifData, sharpMeta) {
+  /**
+   * 4. Multi-Signal AI-Generated Image Detection
+   */
+  static detectAiGeneratedImage(exifData, sharpMeta, fileBuffer = null) {
     let aiProbability = 0.0;
     const signals = [];
 
     const aiSoftwareKeywords = [
-      'midjourney',
+      'c2pa',
+      'chatgpt',
       'dall-e',
       'dalle',
+      'openai',
+      'midjourney',
       'stable diffusion',
       'novelai',
       'automatic1111',
@@ -167,68 +163,111 @@ class ImageService {
       'bing image creator',
       'firefly',
       'flux',
+      'sdxl',
     ];
 
-    const softwareString = (exifData.software || '').toLowerCase();
-    const detectedAiTool = aiSoftwareKeywords.find((kw) => softwareString.includes(kw));
+    // 1. Scan EXIF Software Tag, Raw File Buffer & Chunk Metadata for C2PA or AI Signatures
+    let detectedSoftwareTag = (exifData?.software || '').toLowerCase();
+    let detectedAiTool = aiSoftwareKeywords.find((kw) => detectedSoftwareTag.includes(kw));
+
+    // Scan raw buffer header (first 150KB) for PNG tEXt chunks, C2PA manifests, or embedded tool declarations
+    if (!detectedAiTool && fileBuffer) {
+      const headerStr = fileBuffer.toString('utf-8', 0, Math.min(fileBuffer.length, 150000)).toLowerCase();
+      detectedAiTool = aiSoftwareKeywords.find((kw) => headerStr.includes(kw));
+      if (detectedAiTool) {
+        detectedSoftwareTag = `Metadata chunk: "${detectedAiTool}"`;
+      }
+    }
+
+    if (!detectedAiTool && sharpMeta) {
+      const sharpStr = JSON.stringify(sharpMeta).toLowerCase();
+      detectedAiTool = aiSoftwareKeywords.find((kw) => sharpStr.includes(kw));
+      if (detectedAiTool) {
+        detectedSoftwareTag = `Image properties: "${detectedAiTool}"`;
+      }
+    }
 
     if (detectedAiTool) {
-      aiProbability += 0.9;
+      aiProbability = 0.95;
       signals.push({
         type: 'ai_software_signature',
-        severity: 'high',
-        confidence: 0.98,
-        weight: 0.40,
-        description: `EXIF Software tag matches AI generator tool: "${exifData.software}"`,
+        severity: 'very_high',
+        confidence: 0.99,
+        weight: 0.80,
+        description: `Embedded metadata or C2PA manifest matches AI generator / framework signature ("${detectedAiTool}").`,
         source: 'metadata',
       });
     }
 
-    const hasCameraHardware = exifData.make || exifData.model || exifData.iso || exifData.focalLength;
-    if (!hasCameraHardware) {
-      aiProbability += 0.30;
+    // 2. Physical Camera Hardware Provenance Signal
+    const hasCameraHardware = !!(exifData?.make || exifData?.model || exifData?.iso || exifData?.focalLength || exifData?.exposureTime);
+    if (hasCameraHardware) {
+      // Physical camera sensor detected - reduce synthetic likelihood
+      aiProbability = Math.max(0, aiProbability - 0.20);
       signals.push({
-        type: 'missing_hardware_tags',
+        type: 'camera_hardware_provenance',
         severity: 'low',
-        confidence: 0.65,
-        weight: 0.15,
-        description: 'Absence of physical camera hardware tags (Make, Model, ISO, Focal Length).',
+        confidence: 0.90,
+        weight: 0.20,
+        description: `Physical camera hardware verified (${exifData.make || ''} ${exifData.model || ''}).`,
         source: 'metadata',
       });
     }
 
-    const { width, height } = sharpMeta;
+    // 3. Latent Generator Grid & Resolution Heuristics
+    const width = sharpMeta?.width || 0;
+    const height = sharpMeta?.height || 0;
     const isStandardAiResolution =
       (width === 1024 && height === 1024) ||
       (width === 512 && height === 512) ||
       (width === 1024 && height === 1792) ||
-      (width === 1792 && height === 1024);
+      (width === 1792 && height === 1024) ||
+      (width === 1536 && height === 1024) ||
+      (width === 1024 && height === 1536) ||
+      (width === 1152 && height === 896) ||
+      (width === 896 && height === 1152) ||
+      (width === 1344 && height === 768) ||
+      (width === 768 && height === 1344) ||
+      (width === 1456 && height === 816) ||
+      (width === 1672 && height === 941);
 
-    if (isStandardAiResolution && !hasCameraHardware) {
-      aiProbability += 0.30;
+    const isLatentGridMultiple = (width % 64 === 0 && height % 64 === 0 && width >= 512 && height >= 512);
+
+    if ((isStandardAiResolution || isLatentGridMultiple) && !hasCameraHardware) {
+      if (!detectedAiTool) {
+        aiProbability += 0.30;
+      }
       signals.push({
         type: 'standard_ai_resolution',
         severity: 'medium',
-        confidence: 0.75,
-        weight: 0.20,
-        description: `Image dimensions match standard AI generator output tensors (${width}x${height}).`,
+        confidence: 0.65,
+        weight: 0.30,
+        description: `Image dimensions match latent generator tensor grid (${width}x${height}). (Heuristic signal)`,
         source: 'heuristic',
       });
     }
 
-    aiProbability = Math.min(0.99, parseFloat(Math.max(0.01, aiProbability).toFixed(2)));
+    aiProbability = Math.min(0.99, parseFloat(Math.max(0.0, aiProbability).toFixed(2)));
 
-    let classification = 'LOW';
-    if (aiProbability >= 0.80) classification = 'VERY_HIGH';
-    else if (aiProbability >= 0.60) classification = 'HIGH';
-    else if (aiProbability >= 0.35) classification = 'MEDIUM';
+    let classification = 'INCONCLUSIVE';
+    if (aiProbability >= 0.75) {
+      classification = 'LIKELY_AI_GENERATED';
+    } else if (aiProbability >= 0.35) {
+      classification = 'SUSPICIOUS';
+    } else if (hasCameraHardware) {
+      classification = 'UNLIKELY';
+    } else {
+      classification = 'INCONCLUSIVE';
+    }
+
+    const detected = classification === 'LIKELY_AI_GENERATED';
 
     return {
-      detected: classification === 'VERY_HIGH' || classification === 'HIGH',
+      detected,
       likelihood: aiProbability,
-      confidence: 0.82,
+      confidence: detectedAiTool ? 0.99 : hasCameraHardware ? 0.90 : 0.60,
       classification,
-      method: 'heuristic',
+      method: 'multi_signal_forensics',
       signals,
     };
   }
@@ -238,16 +277,48 @@ class ImageService {
    */
   static async performErrorLevelAnalysis(filePath, fileName) {
     try {
-      const originalSharp = sharp(filePath);
-      const originalJpegBuffer = await originalSharp.jpeg({ quality: 100 }).toBuffer();
-      const resavedJpegBuffer = await sharp(originalJpegBuffer).jpeg({ quality: 95 }).toBuffer();
+      if (!fs.existsSync(filePath)) {
+        return {
+          calculated: false,
+          averageErrorLevel: 0,
+          highErrorThresholdExceeded: false,
+          statistics: { minError: 0, maxError: 0, meanError: 0, stdDeviation: 0, p95: 0, p99: 0 },
+          visualization: { method: 'JPEG recompression analysis', recompressionQuality: 95, normalization: 'None', scaleFactor: 1.0 },
+          elaHeatmapFileName: '',
+          elaDataUrl: '',
+          elaScaleFactor: 1.0,
+          error: 'Image file not found on disk.',
+        };
+      }
 
-      const rawOriginal = await sharp(originalJpegBuffer).raw().toBuffer({ resolveWithObject: true });
-      const rawResaved = await sharp(resavedJpegBuffer).resize(rawOriginal.info.width, rawOriginal.info.height).raw().toBuffer({ resolveWithObject: true });
+      const originalSharp = sharp(filePath);
+      const originalJpegBuffer = await originalSharp
+        .removeAlpha()
+        .toColourspace('srgb')
+        .jpeg({ quality: 100 })
+        .toBuffer();
+
+      const resavedJpegBuffer = await sharp(originalJpegBuffer)
+        .removeAlpha()
+        .toColourspace('srgb')
+        .jpeg({ quality: 95 })
+        .toBuffer();
+
+      const rawOriginal = await sharp(originalJpegBuffer)
+        .removeAlpha()
+        .toColourspace('srgb')
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      const rawResaved = await sharp(resavedJpegBuffer)
+        .resize(rawOriginal.info.width, rawOriginal.info.height)
+        .removeAlpha()
+        .toColourspace('srgb')
+        .raw()
+        .toBuffer({ resolveWithObject: true });
 
       const width = rawOriginal.info.width;
       const height = rawOriginal.info.height;
-      const channels = rawOriginal.info.channels || 3;
       const totalPixels = width * height || 1;
 
       const len = Math.min(rawOriginal.data.length, rawResaved.data.length);
@@ -261,8 +332,7 @@ class ImageService {
       let maxError = 0;
       let pixelIdx = 0;
 
-      // Pass 1: Compute raw forensic statistics
-      for (let i = 0; i < len; i += channels) {
+      for (let i = 0; i < len; i += 3) {
         const r1 = rawOriginal.data[i] || 0;
         const r2 = rawResaved.data[i] || 0;
         const g1 = rawOriginal.data[i + 1] || 0;
@@ -288,44 +358,36 @@ class ImageService {
         pixelIdx++;
       }
 
-      const meanError = parseFloat((totalError / totalPixels).toFixed(2)) || 0.59;
+      const meanError = parseFloat((totalError / totalPixels).toFixed(2)) || 0.0;
 
-      // Calculate Standard Deviation & Percentile Distribution
       let varianceSum = 0;
       for (let i = 0; i < totalPixels; i++) {
         varianceSum += Math.pow(errors[i] - meanError, 2);
       }
       const stdDeviation = parseFloat(Math.sqrt(varianceSum / totalPixels).toFixed(2));
 
-      // Histogram or sample sorting for percentiles
       const sortedSamples = Array.from(errors.subarray(0, Math.min(totalPixels, 50000))).sort((a, b) => a - b);
       const sampleCount = sortedSamples.length || 1;
       const p95 = parseFloat((sortedSamples[Math.floor(sampleCount * 0.95)] || meanError * 2).toFixed(2));
       const p99 = parseFloat((sortedSamples[Math.floor(sampleCount * 0.99)] || meanError * 4).toFixed(2));
 
-      // Pass 2: Robust Percentile-Based Dynamic Normalization for Visualization
       const visualizationCeiling = Math.max(1.0, p99);
       const scaleMultiplier = 255 / visualizationCeiling;
-      const elaBuffer = Buffer.alloc(rawOriginal.data.length);
+      const elaBuffer = Buffer.alloc(width * height * 3);
 
       let outIdx = 0;
       for (let i = 0; i < totalPixels; i++) {
-        const normR = Math.min(255, Math.round(diffRArr[i] * scaleMultiplier));
-        const normG = Math.min(255, Math.round(diffGArr[i] * scaleMultiplier));
-        const normB = Math.min(255, Math.round(diffBArr[i] * scaleMultiplier));
-
-        elaBuffer[outIdx] = normR;
-        elaBuffer[outIdx + 1] = normG;
-        elaBuffer[outIdx + 2] = normB;
-        if (channels === 4) elaBuffer[outIdx + 3] = 255;
-        outIdx += channels;
+        elaBuffer[outIdx] = Math.min(255, Math.round(diffRArr[i] * scaleMultiplier));
+        elaBuffer[outIdx + 1] = Math.min(255, Math.round(diffGArr[i] * scaleMultiplier));
+        elaBuffer[outIdx + 2] = Math.min(255, Math.round(diffBArr[i] * scaleMultiplier));
+        outIdx += 3;
       }
 
       const elaFileName = `ela-${fileName}`;
       const elaFilePath = path.join(__dirname, '../uploads', elaFileName);
 
       const elaJpegBuffer = await sharp(elaBuffer, {
-        raw: { width, height, channels },
+        raw: { width, height, channels: 3 },
       })
         .jpeg({ quality: 95 })
         .toBuffer();
@@ -334,6 +396,7 @@ class ImageService {
       const elaDataUrl = `data:image/jpeg;base64,${elaJpegBuffer.toString('base64')}`;
 
       return {
+        calculated: true,
         averageErrorLevel: meanError,
         highErrorThresholdExceeded: meanError > 12.0,
         statistics: {
@@ -356,14 +419,15 @@ class ImageService {
       };
     } catch (err) {
       return {
-        averageErrorLevel: 0.59,
+        calculated: false,
+        averageErrorLevel: 0,
         highErrorThresholdExceeded: false,
-        statistics: { minError: 0, maxError: 10, meanError: 0.59, stdDeviation: 1.2, p95: 2.5, p99: 4.0 },
-        visualization: { method: 'JPEG recompression analysis', recompressionQuality: 95, normalization: 'P99 Percentile Dynamic Scaling', scaleFactor: 25.0 },
+        statistics: { minError: 0, maxError: 0, meanError: 0, stdDeviation: 0, p95: 0, p99: 0 },
+        visualization: { method: 'JPEG recompression analysis', recompressionQuality: 95, normalization: 'None', scaleFactor: 1.0 },
         elaHeatmapFileName: '',
         elaDataUrl: '',
-        elaScaleFactor: 25.0,
-        error: 'ELA calculation fallback.',
+        elaScaleFactor: 1.0,
+        error: `ELA processing skipped: ${err.message}`,
       };
     }
   }
@@ -422,16 +486,25 @@ class ImageService {
    * Master Image Analysis Orchestration Pipeline.
    */
   static async analyzeImage(fileId, userId, reqHost = '') {
-    const fileRecord = await UploadedFile.findOne({ _id: fileId, userId });
-    if (!fileRecord) {
-      throw new AppError('Image file not found or access denied.', HTTP_STATUS.NOT_FOUND);
+    let fileRecord;
+    let fileBuffer;
+
+    if (typeof fileId === 'object' && fileId !== null && fileId.filePath) {
+      fileRecord = fileId;
+      fileBuffer = userId instanceof Buffer ? userId : fs.readFileSync(fileRecord.filePath);
+    } else {
+      fileRecord = await UploadedFile.findOne({ _id: fileId, userId });
+      if (!fileRecord) {
+        throw new AppError('Image file not found or access denied.', HTTP_STATUS.NOT_FOUND);
+      }
+
+      if (!fs.existsSync(fileRecord.filePath)) {
+        throw new AppError('Image file is no longer available on disk. Please re-upload the image.', HTTP_STATUS.NOT_FOUND);
+      }
+
+      fileBuffer = fs.readFileSync(fileRecord.filePath);
     }
 
-    if (!fs.existsSync(fileRecord.filePath)) {
-      throw new AppError('Image file is no longer available on disk. Please re-upload the image.', HTTP_STATUS.NOT_FOUND);
-    }
-
-    const fileBuffer = fs.readFileSync(fileRecord.filePath);
     const sharpInstance = sharp(fileRecord.filePath);
     const sharpMeta = await sharpInstance.metadata();
 
@@ -447,10 +520,13 @@ class ImageService {
     // 4. Manipulation Assessment
     const manipulationAssessment = this.detectImageManipulation(exifData, sharpMeta, elaResults);
 
-    // 5. AI Generation Assessment
-    const aiAssessment = this.detectAiGeneratedImage(exifData, sharpMeta);
+    // 5. AI Generation Assessment (Forensics & Heuristics)
+    const aiAssessment = this.detectAiGeneratedImage(exifData, sharpMeta, fileBuffer);
 
-    // 6. Independent Risk Assessment
+    // 6. Trained Neural Network AI Detector Inference (ONNX Engine)
+    const aiModelDetector = await AIImageDetector.detect(fileBuffer);
+
+    // 7. Independent Risk Assessment
     const riskAssessment = this.evaluateImageSecurityRisk(fileBuffer, sharpMeta, exifData, aiAssessment, manipulationAssessment);
 
     // Combine Signals
@@ -462,96 +538,247 @@ class ImageService {
     const positiveFactors = [];
     const negativeFactors = [];
 
-    if (provenanceAssessment.status === 'VERIFIED') {
+    const hasCameraHardware = !!(exifData.make || exifData.model || exifData.iso || exifData.focalLength);
+    if (provenanceAssessment.status === 'VERIFIED' && hasCameraHardware) {
       positiveFactors.push('Full camera sensor EXIF provenance verified.');
     }
-    if (!aiAssessment.detected) {
+    if (hasCameraHardware && !aiAssessment.detected && aiAssessment.likelihood < 0.30) {
       positiveFactors.push('Image exhibits physical camera sensor characteristics.');
     }
     if (manipulationAssessment.detected) {
       negativeFactors.push(`Editing traces detected (Software: ${manipulationAssessment.detectedSoftware || 'Generic'}).`);
     }
-    if (aiAssessment.detected) {
+    if (aiAssessment.detected || aiAssessment.likelihood >= 0.55) {
       negativeFactors.push(`High AI-generation likelihood (${(aiAssessment.likelihood * 100).toFixed(0)}%).`);
+    } else if (aiAssessment.likelihood >= 0.35) {
+      negativeFactors.push(`Inconclusive provenance — medium AI likelihood (${(aiAssessment.likelihood * 100).toFixed(0)}%).`);
     }
 
     // Trust Score Synthesis (0 - 100)
     let trustScore = 100.0;
-    trustScore -= aiAssessment.likelihood * 20;
-    trustScore -= manipulationAssessment.likelihood * 20;
-    if (riskAssessment.riskScore > 20) trustScore -= (riskAssessment.riskScore * 0.4);
+    if (aiAssessment.classification === 'LIKELY_AI_GENERATED') {
+      trustScore -= (aiAssessment.likelihood * 60.0);
+    } else if (aiAssessment.classification === 'SUSPICIOUS') {
+      trustScore -= (aiAssessment.likelihood * 30.0);
+    }
+    if (aiModelDetector.detectorStatus === 'AVAILABLE' && aiModelDetector.aiGeneratedProbability) {
+      trustScore -= (aiModelDetector.aiGeneratedProbability * 40.0);
+    }
+    trustScore -= (manipulationAssessment.likelihood * 25.0);
+    if (riskAssessment.riskScore > 20) trustScore -= (riskAssessment.riskScore * 0.3);
+    if (provenanceAssessment.status === 'UNVERIFIED') trustScore -= 5.0;
 
     trustScore = Math.max(0.0, Math.min(100.0, parseFloat(trustScore.toFixed(1))));
 
     const confidenceScore = parseFloat(((aiAssessment.confidence + manipulationAssessment.confidence + provenanceAssessment.confidence) / 3).toFixed(2));
     const riskCategory = riskAssessment.riskLevel.toLowerCase();
 
-    // Create Analysis Record in MongoDB
-    const analysisRecord = await Analysis.create({
-      userId,
-      targetEntity: fileRecord.originalName,
-      entityType: 'content',
-      trustScore,
-      confidenceScore,
-      status: 'completed',
-      riskCategory,
-      insights: [
-        `Dimensions: ${sharpMeta.width}x${sharpMeta.height} (${sharpMeta.format.toUpperCase()}).`,
-        aiAssessment.detected
-          ? `AI DETECTED: ${aiAssessment.classification} likelihood of AI generation (${(aiAssessment.likelihood * 100).toFixed(0)}%).`
-          : 'AI CLEAN: Image exhibits physical sensor characteristics.',
-        manipulationAssessment.detected
-          ? `MANIPULATION: Digital editing software traces detected (${manipulationAssessment.classification}).`
-          : 'MANIPULATION CLEAN: No explicit digital editing software signatures found.',
-        `Risk Level: ${riskAssessment.riskLevel}.`,
-      ],
-      graphMetadata: {
-        nodeCount: sharpMeta.width * sharpMeta.height,
-        edgeCount: Math.round(elaResults.averageErrorLevel),
-        centralityScore: trustScore / 100,
-        elaFileName: elaResults.elaHeatmapFileName,
+    // Construct Standardized Evidence Items
+    const aiEvidence = EvidenceBuilder.create({
+      signal: 'IMAGE_AI_GENERATION',
+      category: CATEGORIES.IMAGE_AI_GENERATION,
+      assessment: aiAssessment.classification === 'LIKELY_AI_GENERATED'
+        ? ASSESSMENTS.LIKELY_AI_GENERATED
+        : aiAssessment.classification === 'SUSPICIOUS'
+        ? ASSESSMENTS.SUSPICIOUS
+        : aiAssessment.classification === 'UNLIKELY'
+        ? ASSESSMENTS.PASS
+        : ASSESSMENTS.INCONCLUSIVE,
+      value: aiAssessment.likelihood,
+      confidence: aiAssessment.confidence,
+      source: aiAssessment.signals.some((s) => s.type === 'ai_software_signature') ? SOURCES.C2PA : SOURCES.HEURISTIC,
+      evidence: aiAssessment.signals.map((s) => s.description),
+      rawSignal: {
+        detected: aiAssessment.detected,
+        likelihood: aiAssessment.likelihood,
+        classification: aiAssessment.classification,
+        method: aiAssessment.method,
+        signals: aiAssessment.signals,
       },
+      detectorVersion: '1.0.0',
+      modelVersion: 'forensics-multi-signal-v1',
     });
 
-    // History audit event
-    await History.create({
-      userId,
-      action: 'ANALYSIS_RUN',
-      entityId: analysisRecord._id,
-      entityType: 'Analysis',
-      details: {
-        fileName: fileRecord.originalName,
-        trustScore,
-        riskCategory,
-      },
+    const trainedModelEvidence = EvidenceBuilder.create({
+      signal: 'AI_IMAGE_CLASSIFIER',
+      category: CATEGORIES.IMAGE_AI_GENERATION,
+      assessment: aiModelDetector.classification,
+      value: aiModelDetector.aiGeneratedProbability !== null ? aiModelDetector.aiGeneratedProbability : 0.0,
+      confidence: aiModelDetector.confidence,
+      source: SOURCES.MODEL,
+      evidence: aiModelDetector.evidence,
+      rawSignal: aiModelDetector,
+      detectorVersion: '1.0.0',
+      modelVersion: aiModelDetector.modelVersion,
     });
 
-    // Notification
-    try {
-      const NotificationService = require('./notification.service');
-      const isCritical = riskAssessment.riskLevel === 'CRITICAL' || riskAssessment.riskLevel === 'HIGH';
-      await NotificationService.createNotification({
-        userId,
-        type: isCritical ? 'CRITICAL_THREAT' : 'ANALYSIS_COMPLETE',
-        title: `Image Forensics: ${fileRecord.originalName}`,
-        message: `Image analysis finished. Trust Score: ${trustScore}% (${riskAssessment.riskLevel} risk). ${aiAssessment.detected ? 'AI likelihood detected.' : ''}`,
-        severity: isCritical ? 'critical' : riskAssessment.riskLevel === 'MEDIUM' ? 'warning' : 'success',
-        entityId: analysisRecord._id,
-      });
-    } catch (nErr) {
-      console.error('[ImageService] Notification trigger error:', nErr.message);
+    const manipulationEvidence = EvidenceBuilder.create({
+      signal: 'IMAGE_MANIPULATION',
+      category: CATEGORIES.IMAGE_MANIPULATION,
+      assessment: manipulationAssessment.classification === 'HIGH'
+        ? ASSESSMENTS.HIGH_RISK
+        : manipulationAssessment.classification === 'POSSIBLE'
+        ? ASSESSMENTS.SUSPICIOUS
+        : ASSESSMENTS.PASS,
+      value: manipulationAssessment.likelihood,
+      confidence: manipulationAssessment.confidence,
+      source: manipulationAssessment.detectedSoftware ? SOURCES.METADATA : SOURCES.FORENSICS,
+      evidence: manipulationAssessment.signals.map((s) => s.description),
+      rawSignal: {
+        detected: manipulationAssessment.detected,
+        likelihood: manipulationAssessment.likelihood,
+        classification: manipulationAssessment.classification,
+        detectedSoftware: manipulationAssessment.detectedSoftware,
+        signals: manipulationAssessment.signals,
+      },
+      detectorVersion: '1.0.0',
+      modelVersion: 'ela-recompression-v1',
+    });
+
+    const provenanceEvidence = EvidenceBuilder.create({
+      signal: 'IMAGE_PROVENANCE',
+      category: CATEGORIES.IMAGE_PROVENANCE,
+      assessment: provenanceAssessment.status === 'VERIFIED'
+        ? ASSESSMENTS.PASS
+        : provenanceAssessment.status === 'LIMITED'
+        ? ASSESSMENTS.SUSPICIOUS
+        : ASSESSMENTS.INCONCLUSIVE,
+      value: provenanceAssessment.status === 'VERIFIED' ? 1.0 : provenanceAssessment.status === 'LIMITED' ? 0.5 : 0.0,
+      confidence: provenanceAssessment.confidence,
+      source: SOURCES.METADATA,
+      evidence: provenanceAssessment.signals,
+      rawSignal: {
+        status: provenanceAssessment.status,
+        confidence: provenanceAssessment.confidence,
+        signals: provenanceAssessment.signals,
+      },
+      detectorVersion: '1.0.0',
+    });
+
+    const metadataEvidence = EvidenceBuilder.create({
+      signal: 'IMAGE_METADATA',
+      category: CATEGORIES.IMAGE_METADATA,
+      assessment: exifData.hasExifData ? ASSESSMENTS.PASS : ASSESSMENTS.LOW_RISK,
+      value: exifData.hasExifData ? 1.0 : 0.0,
+      confidence: 0.95,
+      source: SOURCES.METADATA,
+      evidence: exifData.hasExifData
+        ? [
+            'EXIF metadata tags present.',
+            exifData.make ? `Make: ${exifData.make}` : null,
+            exifData.model ? `Model: ${exifData.model}` : null,
+            exifData.software ? `Software: ${exifData.software}` : null,
+          ].filter(Boolean)
+        : ['EXIF metadata stripped or missing.'],
+      rawSignal: {
+        hasExifData: exifData.hasExifData,
+        make: exifData.make || null,
+        model: exifData.model || null,
+        software: exifData.software || null,
+      },
+      detectorVersion: '1.0.0',
+    });
+
+    const securityEvidence = EvidenceBuilder.create({
+      signal: 'IMAGE_SECURITY',
+      category: CATEGORIES.IMAGE_SECURITY,
+      assessment: riskAssessment.riskLevel === 'CRITICAL' || riskAssessment.riskLevel === 'HIGH'
+        ? ASSESSMENTS.HIGH_RISK
+        : riskAssessment.riskLevel === 'MEDIUM'
+        ? ASSESSMENTS.SUSPICIOUS
+        : ASSESSMENTS.PASS,
+      value: parseFloat((riskAssessment.riskScore / 100).toFixed(2)),
+      confidence: 0.90,
+      source: SOURCES.HEURISTIC,
+      evidence: riskAssessment.reasons,
+      rawSignal: {
+        riskLevel: riskAssessment.riskLevel,
+        riskScore: riskAssessment.riskScore,
+        reasons: riskAssessment.reasons,
+        recommendations: riskAssessment.recommendations,
+      },
+      detectorVersion: '1.0.0',
+    });
+
+    const evidenceList = [aiEvidence, trainedModelEvidence, manipulationEvidence, provenanceEvidence, metadataEvidence, securityEvidence];
+    const evidenceSummary = EvidenceAggregator.aggregate(evidenceList);
+
+    // Create Analysis Record in MongoDB if valid userId provided
+    let analysisId = null;
+    const mongoose = require('mongoose');
+
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      try {
+        const analysisRecord = await Analysis.create({
+          userId,
+          targetEntity: fileRecord.originalName || fileRecord.fileName || 'uploaded_image',
+          entityType: 'content',
+          trustScore,
+          confidenceScore,
+          status: 'completed',
+          riskCategory,
+          evidenceList,
+          insights: [
+            `Dimensions: ${sharpMeta.width}x${sharpMeta.height} (${sharpMeta.format.toUpperCase()}).`,
+            aiAssessment.detected
+              ? `AI DETECTED: ${aiAssessment.classification} likelihood of AI generation (${(aiAssessment.likelihood * 100).toFixed(0)}%).`
+              : 'AI CLEAN: Image exhibits physical sensor characteristics.',
+            manipulationAssessment.detected
+              ? `MANIPULATION: Digital editing software traces detected (${manipulationAssessment.classification}).`
+              : 'MANIPULATION CLEAN: No explicit digital editing software signatures found.',
+            `Risk Level: ${riskAssessment.riskLevel}.`,
+            `AI Neural Model: ${aiModelDetector.detectorStatus}`,
+          ],
+          graphMetadata: {
+            nodeCount: sharpMeta.width * sharpMeta.height,
+            edgeCount: Math.round(elaResults.averageErrorLevel),
+            centralityScore: trustScore / 100,
+            elaFileName: elaResults.elaHeatmapFileName,
+          },
+        });
+
+        analysisId = analysisRecord._id;
+
+        // History audit event
+        await History.create({
+          userId,
+          action: 'ANALYSIS_RUN',
+          entityId: analysisRecord._id,
+          entityType: 'Analysis',
+          details: {
+            fileName: fileRecord.originalName || fileRecord.fileName,
+            trustScore,
+            riskCategory,
+          },
+        });
+
+        // Notification
+        const NotificationService = require('./notification.service');
+        const isCritical = riskAssessment.riskLevel === 'CRITICAL' || riskAssessment.riskLevel === 'HIGH';
+        await NotificationService.createNotification({
+          userId,
+          type: isCritical ? 'CRITICAL_THREAT' : 'ANALYSIS_COMPLETE',
+          title: `Image Forensics: ${fileRecord.originalName || fileRecord.fileName}`,
+          message: `Image analysis finished. Trust Score: ${trustScore}% (${riskAssessment.riskLevel} risk). ${aiAssessment.detected ? 'AI likelihood detected.' : ''}`,
+          severity: isCritical ? 'critical' : riskAssessment.riskLevel === 'MEDIUM' ? 'warning' : 'success',
+          entityId: analysisRecord._id,
+        });
+      } catch (dbErr) {
+        console.error('[ImageService] DB Audit record creation bypassed:', dbErr.message);
+      }
     }
 
     return {
-      analysisId: analysisRecord._id,
+      analysisId,
       fileInfo: {
-        originalName: fileRecord.originalName,
+        originalName: fileRecord.originalName || fileRecord.fileName,
         width: sharpMeta.width,
         height: sharpMeta.height,
         format: sharpMeta.format,
         sizeBytes: fileRecord.fileSizeBytes,
       },
       exifData,
+      aiModelDetector,
       aiGenerationAssessment: aiAssessment,
       manipulationAssessment,
       provenanceAssessment,
@@ -567,6 +794,10 @@ class ImageService {
       overallTrustScore: trustScore,
       confidenceScore,
       riskCategory,
+      // Standardized Evidence Layer
+      evidences: evidenceList,
+      evidence: evidenceList,
+      evidenceSummary,
     };
   }
 }

@@ -50,9 +50,33 @@ class TrainPipeline {
     });
     const gbdtTrainMeta = gbdt.train(trainData);
 
-    // 6. Threshold Optimization on Validation Set
+const ProbabilityCalibrator = require('./probabilityCalibrator');
+
+    // 6. Probability Calibration & Threshold Optimization on Validation Set
+    const logRegValPreds = valData.map(item => ({
+      probability: logReg.predictProbability(item.featureVector).probability,
+      label: item.label,
+    }));
+    const logRegCalibrator = new ProbabilityCalibrator({ calibrationVersion: 'platt-logreg-v1.0.0' }).fit(logRegValPreds);
+    const logRegCalibratedVal = logRegValPreds.map(item => ({
+      probability: logRegCalibrator.calibrate(item.probability),
+      label: item.label,
+    }));
+    const logRegCalMetrics = ProbabilityCalibrator.computeCalibrationMetrics(logRegCalibratedVal);
+
     const logRegOpt = ModelEvaluator.findOptimalThreshold(logReg, valData);
     logReg.threshold = logRegOpt.optimalThreshold;
+
+    const gbdtValPreds = valData.map(item => ({
+      probability: gbdt.predictProbability(item.featureVector).probability,
+      label: item.label,
+    }));
+    const gbdtCalibrator = new ProbabilityCalibrator({ calibrationVersion: 'platt-gbdt-v1.0.0' }).fit(gbdtValPreds);
+    const gbdtCalibratedVal = gbdtValPreds.map(item => ({
+      probability: gbdtCalibrator.calibrate(item.probability),
+      label: item.label,
+    }));
+    const gbdtCalMetrics = ProbabilityCalibrator.computeCalibrationMetrics(gbdtCalibratedVal);
 
     const gbdtOpt = ModelEvaluator.findOptimalThreshold(gbdt, valData);
     gbdt.threshold = gbdtOpt.optimalThreshold;
@@ -60,6 +84,20 @@ class TrainPipeline {
     // 7. Rigorous Evaluation on Unseen Held-Out Test Set (15% of data)
     const logRegTestEval = ModelEvaluator.evaluate(logReg, testData, logReg.threshold);
     const gbdtTestEval = ModelEvaluator.evaluate(gbdt, testData, gbdt.threshold);
+
+    // Compute calibration metrics on test set
+    const logRegTestCal = ProbabilityCalibrator.computeCalibrationMetrics(
+      testData.map(item => ({
+        probability: logRegCalibrator.calibrate(logReg.predictProbability(item.featureVector).probability),
+        label: item.label,
+      }))
+    );
+    const gbdtTestCal = ProbabilityCalibrator.computeCalibrationMetrics(
+      testData.map(item => ({
+        probability: gbdtCalibrator.calibrate(gbdt.predictProbability(item.featureVector).probability),
+        label: item.label,
+      }))
+    );
 
     // 8. Compile Comprehensive Model Comparison Report
     const comparisonReport = {
@@ -74,18 +112,22 @@ class TrainPipeline {
         isSynthetic: true,
       },
       featureVersion: FeaturePipeline.FEATURE_VERSION,
+      scalerVersion: 'scaler-v1.0.0',
+      thresholdVersion: 'thresholds-v1.0.0',
       models: {
         baseline_logistic_regression: {
           modelVersion: logReg.modelVersion,
           optimalThreshold: logReg.threshold,
           training: logRegTrainMeta,
           testEvaluation: logRegTestEval,
+          calibration: logRegTestCal,
         },
         primary_gradient_boosted_trees: {
           modelVersion: gbdt.modelVersion,
           optimalThreshold: gbdt.threshold,
           training: gbdtTrainMeta,
           testEvaluation: gbdtTestEval,
+          calibration: gbdtTestCal,
         },
       },
       winner: gbdtTestEval.metrics.f1Score >= logRegTestEval.metrics.f1Score
@@ -93,6 +135,7 @@ class TrainPipeline {
         : 'baseline_logistic_regression',
       comparisonSummary: {
         rocAucDelta: parseFloat((gbdtTestEval.metrics.rocAuc - logRegTestEval.metrics.rocAuc).toFixed(4)),
+        prAucDelta: parseFloat((gbdtTestEval.metrics.prAuc - logRegTestEval.metrics.prAuc).toFixed(4)),
         f1ScoreDelta: parseFloat((gbdtTestEval.metrics.f1Score - logRegTestEval.metrics.f1Score).toFixed(4)),
         financialLossDeltaUSD: parseFloat((gbdtTestEval.financialRisk.totalFinancialLoss - logRegTestEval.financialRisk.totalFinancialLoss).toFixed(2)),
       },
@@ -102,6 +145,8 @@ class TrainPipeline {
     fs.writeFileSync(path.join(this.ARTIFACTS_DIR, 'scaler-v1.json'), JSON.stringify(scalerStats, null, 2));
     fs.writeFileSync(path.join(this.ARTIFACTS_DIR, 'logreg-risk-v1.json'), JSON.stringify(logReg.toJSON(), null, 2));
     fs.writeFileSync(path.join(this.ARTIFACTS_DIR, 'gbdt-risk-v1.json'), JSON.stringify(gbdt.toJSON(), null, 2));
+    fs.writeFileSync(path.join(this.ARTIFACTS_DIR, 'calibrator-gbdt-v1.json'), JSON.stringify(gbdtCalibrator.toJSON(), null, 2));
+    fs.writeFileSync(path.join(this.ARTIFACTS_DIR, 'calibrator-logreg-v1.json'), JSON.stringify(logRegCalibrator.toJSON(), null, 2));
     fs.writeFileSync(path.join(this.ARTIFACTS_DIR, 'model-comparison-v1.json'), JSON.stringify(comparisonReport, null, 2));
 
     return {

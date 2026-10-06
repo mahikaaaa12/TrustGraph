@@ -4,6 +4,7 @@ const FeaturePipeline = require('./featurePipeline');
 const LogisticRegressionModel = require('./logisticRegression');
 const GradientBoostedTreesModel = require('./gradientBoostedTrees');
 const TrainPipeline = require('./trainPipeline');
+const ProbabilityCalibrator = require('./probabilityCalibrator');
 
 /**
  * Enterprise Risk Inference Engine Service
@@ -15,6 +16,8 @@ class RiskEngineService {
     this.scalerStats = null;
     this.gbdtModel = null;
     this.logRegModel = null;
+    this.gbdtCalibrator = null;
+    this.logRegCalibrator = null;
     this.comparisonReport = null;
 
     this.init();
@@ -25,12 +28,20 @@ class RiskEngineService {
     const gbdtPath = path.join(this.artifactsDir, 'gbdt-risk-v1.json');
     const logregPath = path.join(this.artifactsDir, 'logreg-risk-v1.json');
     const compPath = path.join(this.artifactsDir, 'model-comparison-v1.json');
+    const gbdtCalPath = path.join(this.artifactsDir, 'calibrator-gbdt-v1.json');
+    const logregCalPath = path.join(this.artifactsDir, 'calibrator-logreg-v1.json');
 
     if (fs.existsSync(scalerPath) && fs.existsSync(gbdtPath) && fs.existsSync(logregPath)) {
       try {
         this.scalerStats = JSON.parse(fs.readFileSync(scalerPath, 'utf-8'));
         this.gbdtModel = GradientBoostedTreesModel.fromJSON(JSON.parse(fs.readFileSync(gbdtPath, 'utf-8')));
         this.logRegModel = LogisticRegressionModel.fromJSON(JSON.parse(fs.readFileSync(logregPath, 'utf-8')));
+        if (fs.existsSync(gbdtCalPath)) {
+          this.gbdtCalibrator = ProbabilityCalibrator.fromJSON(JSON.parse(fs.readFileSync(gbdtCalPath, 'utf-8')));
+        }
+        if (fs.existsSync(logregCalPath)) {
+          this.logRegCalibrator = ProbabilityCalibrator.fromJSON(JSON.parse(fs.readFileSync(logregCalPath, 'utf-8')));
+        }
         if (fs.existsSync(compPath)) {
           this.comparisonReport = JSON.parse(fs.readFileSync(compPath, 'utf-8'));
         }
@@ -64,15 +75,20 @@ class RiskEngineService {
     }
 
     const transformed = FeaturePipeline.transform(transactionData, this.scalerStats);
-    const model = modelChoice.toLowerCase() === 'logreg' ? this.logRegModel : this.gbdtModel;
+    const isLogReg = modelChoice.toLowerCase() === 'logreg';
+    const model = isLogReg ? this.logRegModel : this.gbdtModel;
+    const calibrator = isLogReg ? this.logRegCalibrator : this.gbdtCalibrator;
 
     const { probability } = model.predictProbability(transformed.featureVector);
-    const riskProbability = probability;
-    const riskScore = parseFloat((riskProbability * 100).toFixed(1));
+    const rawFraudProbability = probability;
+    const calibratedProbability = calibrator ? calibrator.calibrate(rawFraudProbability) : rawFraudProbability;
+
+    const modelConfidence = parseFloat((Math.abs(calibratedProbability - 0.5) * 2.0).toFixed(4));
+    const riskScore = parseFloat((calibratedProbability * 100).toFixed(1));
     const trustScore = parseFloat((Math.max(0, 100 - riskScore)).toFixed(1));
 
     const amount = Number(transformed.rawFeatures.transactionAmount) || 0.0;
-    const expectedLoss = parseFloat((riskProbability * amount).toFixed(2));
+    const expectedLoss = parseFloat((calibratedProbability * amount).toFixed(2));
 
     // Decision boundaries (for policy engine guidance)
     let recommendedAction = 'APPROVE';
@@ -99,12 +115,20 @@ class RiskEngineService {
       modelVersion: model.modelVersion,
       modelType: model.constructor.name,
       featureVersion: transformed.featureVersion,
-      riskProbability,
+      scalerVersion: 'scaler-v1.0.0',
+      thresholdVersion: 'thresholds-v1.0.0',
+      calibrationVersion: calibrator ? calibrator.calibrationVersion : 'none',
+      fraudProbability: rawFraudProbability,
+      calibratedProbability,
+      modelConfidence,
+      riskProbability: calibratedProbability,
       riskScore,
       trustScore,
       riskTier,
       transactionAmount: amount,
+      expectedLoss,
       expectedLossUSD: expectedLoss,
+      policyDecision: recommendedAction,
       recommendedAction,
       decisionThreshold: model.threshold,
       topRiskFactors: topRiskFactors.slice(0, 5),

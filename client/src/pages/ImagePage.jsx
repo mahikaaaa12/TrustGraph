@@ -19,6 +19,7 @@ import {
   ZoomIn,
   X,
 } from 'lucide-react';
+import AnalysisLoader from '../components/common/AnalysisLoader';
 
 export default function ImagePage() {
   const { showToast } = useErrorLogs();
@@ -155,26 +156,10 @@ export default function ImagePage() {
           </div>
 
           {loading && (
-            <div className="p-4 bg-[#F8F7F4] rounded-xl border border-[#E5E7EB] space-y-3">
-              <div className="flex justify-between text-xs font-mono">
-                <span className="text-[#7F8F73] font-semibold">Executing Forensics Pipeline...</span>
-                <span className="text-[#2B2B2B] font-bold">{Math.round((scanStep / 6) * 100)}%</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
-                {stepsList.map((stepName, idx) => (
-                  <div key={idx} className="flex items-center space-x-1.5">
-                    {scanStep > idx + 1 ? (
-                      <Check className="w-3.5 h-3.5 text-[#5B8C5A]" />
-                    ) : scanStep === idx + 1 ? (
-                      <Loader2 className="w-3.5 h-3.5 text-[#8E9A7D] animate-spin" />
-                    ) : (
-                      <span className="w-3.5 h-3.5 rounded-full border border-[#E5E7EB] inline-block" />
-                    )}
-                    <span className={scanStep > idx ? 'text-[#2B2B2B] font-medium' : 'text-[#9CA3AF]'}>{stepName}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <AnalysisLoader
+              message="Executing Image Forensics Pipeline..."
+              subMessage="TrustGraph is extracting EXIF tags, scanning pixel ELA heatmaps, and computing AI manipulation signatures."
+            />
           )}
 
           <button
@@ -193,7 +178,9 @@ export default function ImagePage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="p-5 bg-white border border-[#E5E7EB] rounded-2xl shadow-xs">
               <span className="text-xs text-[#6B7280]">Image Trust Score</span>
-              <p className="text-2xl font-black text-[#5B8C5A] mt-1">{score} / 100</p>
+              <p className={`text-2xl font-black mt-1 ${score >= 75 ? 'text-[#5B8C5A]' : score >= 50 ? 'text-[#D9A441]' : 'text-[#D96C6C]'}`}>
+                {score} / 100
+              </p>
             </div>
             <div className="p-5 bg-white border border-[#E5E7EB] rounded-2xl shadow-xs">
               <span className="text-xs text-[#6B7280]">AI Generation Likelihood</span>
@@ -225,9 +212,31 @@ export default function ImagePage() {
                 </div>
               </div>
 
-              <span className="px-3 py-1 rounded-full bg-[#8E9A7D]/15 text-[#7F8F73] font-mono text-xs font-bold uppercase border border-[#8E9A7D]/30">
-                PROVENANCE: {provenanceAssessment.status || 'LIMITED'}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`px-3 py-1 rounded-full font-mono text-xs font-bold uppercase border ${
+                  aiAssessment.detected
+                    ? 'bg-[#D96C6C]/15 text-[#D96C6C] border-[#D96C6C]/30'
+                    : aiLikelihood >= 35 || manipAssessment.detected
+                    ? 'bg-[#D9A441]/15 text-[#D9A441] border-[#D9A441]/30'
+                    : provenanceAssessment.status === 'VERIFIED'
+                    ? 'bg-[#5B8C5A]/15 text-[#5B8C5A] border-[#5B8C5A]/30'
+                    : 'bg-gray-100 text-gray-700 border-gray-300'
+                }`}>
+                  CLASSIFICATION: {
+                    aiAssessment.detected
+                      ? 'AI GENERATED'
+                      : aiLikelihood >= 35 || manipAssessment.detected
+                      ? 'SUSPICIOUS'
+                      : provenanceAssessment.status === 'VERIFIED'
+                      ? 'AUTHENTIC'
+                      : 'INCONCLUSIVE'
+                  }
+                </span>
+
+                <span className="px-3 py-1 rounded-full bg-[#8E9A7D]/15 text-[#7F8F73] font-mono text-xs font-bold uppercase border border-[#8E9A7D]/30">
+                  PROVENANCE: {provenanceAssessment.status || 'LIMITED'}
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
