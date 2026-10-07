@@ -44,7 +44,15 @@ exports.getElaHeatmap = asyncHandler(async (req, res) => {
   let filePath = fileName ? path.join(uploadDir, fileName) : null;
 
   if (!filePath || !fs.existsSync(filePath)) {
-    const fileRecord = await UploadedFile.findOne({ originalName: analysisRecord.targetEntity, userId: req.user._id }).sort({ createdAt: -1 });
+    let fileRecord = null;
+    if (analysisRecord.graphMetadata?.fileId) {
+      fileRecord = await UploadedFile.findById(analysisRecord.graphMetadata.fileId);
+    }
+    if (!fileRecord) {
+      fileRecord = await UploadedFile.findOne({
+        $or: [{ userId: req.user._id }, { allowedUsers: req.user._id }, { 'userUploads.userId': req.user._id }],
+      }).sort({ createdAt: -1 });
+    }
     if (fileRecord) {
       filePath = path.join(uploadDir, `ela-${fileRecord.fileName}`);
     }

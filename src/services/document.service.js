@@ -283,7 +283,10 @@ class DocumentService {
    * End-to-end Document Analysis execution pipeline.
    */
   static async analyzeDocument(fileId, userId) {
-    const fileRecord = await UploadedFile.findOne({ _id: fileId, userId });
+    const fileRecord = await UploadedFile.findOne({
+      _id: fileId,
+      $or: [{ userId }, { allowedUsers: userId }, { 'userUploads.userId': userId }],
+    });
     if (!fileRecord) {
       throw new AppError('File not found or access denied.', HTTP_STATUS.NOT_FOUND);
     }

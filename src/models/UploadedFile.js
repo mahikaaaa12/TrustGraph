@@ -40,6 +40,25 @@ const uploadedFileSchema = new mongoose.Schema(
       unique: true, // Prevents storing duplicate file contents
       index: true,
     },
+    allowedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    userUploads: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+        },
+        originalName: String,
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     isProcessed: {
       type: Boolean,
       default: false,

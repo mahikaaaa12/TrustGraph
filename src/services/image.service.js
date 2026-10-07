@@ -493,7 +493,10 @@ class ImageService {
       fileRecord = fileId;
       fileBuffer = userId instanceof Buffer ? userId : fs.readFileSync(fileRecord.filePath);
     } else {
-      fileRecord = await UploadedFile.findOne({ _id: fileId, userId });
+      fileRecord = await UploadedFile.findOne({
+        _id: fileId,
+        $or: [{ userId }, { allowedUsers: userId }, { 'userUploads.userId': userId }],
+      });
       if (!fileRecord) {
         throw new AppError('Image file not found or access denied.', HTTP_STATUS.NOT_FOUND);
       }
@@ -703,22 +706,37 @@ class ImageService {
     const evidenceList = [aiEvidence, trainedModelEvidence, manipulationEvidence, provenanceEvidence, metadataEvidence, securityEvidence];
     const evidenceSummary = EvidenceAggregator.aggregate(evidenceList);
 
-    // Create Analysis Record in MongoDB if valid userId provided
+    // Create or Update Analysis Record in MongoDB if valid userId provided
     let analysisId = null;
     const mongoose = require('mongoose');
 
+    // Resolve user-specific original name to preserve strict user isolation
+    const userUpload = Array.isArray(fileRecord.userUploads)
+      ? fileRecord.userUploads.find((u) => u.userId && u.userId.toString() === userId.toString())
+      : null;
+    const effectiveOriginalName = userUpload?.originalName || fileRecord.originalName || fileRecord.fileName || 'uploaded_image';
+
     if (userId && mongoose.Types.ObjectId.isValid(userId)) {
       try {
-        const analysisRecord = await Analysis.create({
+        // Check if an existing Analysis record already exists for this user and file/targetEntity
+        let analysisRecord = await Analysis.findOne({
           userId,
-          targetEntity: fileRecord.originalName || fileRecord.fileName || 'uploaded_image',
-          entityType: 'content',
-          trustScore,
-          confidenceScore,
-          status: 'completed',
-          riskCategory,
-          evidenceList,
-          insights: [
+          $or: [
+            { 'graphMetadata.fileId': fileRecord._id },
+            { 'graphMetadata.checksum': fileRecord.checksum },
+            { targetEntity: effectiveOriginalName },
+          ],
+        }).sort({ createdAt: -1 });
+
+        if (analysisRecord) {
+          console.log(`[UploadedFile] existing analysis status: ${analysisRecord.status}, updating/reprocessing existing record`);
+          analysisRecord.targetEntity = effectiveOriginalName;
+          analysisRecord.trustScore = trustScore;
+          analysisRecord.confidenceScore = confidenceScore;
+          analysisRecord.status = 'completed';
+          analysisRecord.riskCategory = riskCategory;
+          analysisRecord.evidenceList = evidenceList;
+          analysisRecord.insights = [
             `Dimensions: ${sharpMeta.width}x${sharpMeta.height} (${sharpMeta.format.toUpperCase()}).`,
             aiAssessment.detected
               ? `AI DETECTED: ${aiAssessment.classification} likelihood of AI generation (${(aiAssessment.likelihood * 100).toFixed(0)}%).`
@@ -728,14 +746,47 @@ class ImageService {
               : 'MANIPULATION CLEAN: No explicit digital editing software signatures found.',
             `Risk Level: ${riskAssessment.riskLevel}.`,
             `AI Neural Model: ${aiModelDetector.detectorStatus}`,
-          ],
-          graphMetadata: {
+          ];
+          analysisRecord.graphMetadata = {
+            fileId: fileRecord._id,
+            checksum: fileRecord.checksum,
             nodeCount: sharpMeta.width * sharpMeta.height,
             edgeCount: Math.round(elaResults.averageErrorLevel),
             centralityScore: trustScore / 100,
             elaFileName: elaResults.elaHeatmapFileName,
-          },
-        });
+          };
+          await analysisRecord.save();
+        } else {
+          analysisRecord = await Analysis.create({
+            userId,
+            targetEntity: effectiveOriginalName,
+            entityType: 'content',
+            trustScore,
+            confidenceScore,
+            status: 'completed',
+            riskCategory,
+            evidenceList,
+            insights: [
+              `Dimensions: ${sharpMeta.width}x${sharpMeta.height} (${sharpMeta.format.toUpperCase()}).`,
+              aiAssessment.detected
+                ? `AI DETECTED: ${aiAssessment.classification} likelihood of AI generation (${(aiAssessment.likelihood * 100).toFixed(0)}%).`
+                : 'AI CLEAN: Image exhibits physical sensor characteristics.',
+              manipulationAssessment.detected
+                ? `MANIPULATION: Digital editing software traces detected (${manipulationAssessment.classification}).`
+                : 'MANIPULATION CLEAN: No explicit digital editing software signatures found.',
+              `Risk Level: ${riskAssessment.riskLevel}.`,
+              `AI Neural Model: ${aiModelDetector.detectorStatus}`,
+            ],
+            graphMetadata: {
+              fileId: fileRecord._id,
+              checksum: fileRecord.checksum,
+              nodeCount: sharpMeta.width * sharpMeta.height,
+              edgeCount: Math.round(elaResults.averageErrorLevel),
+              centralityScore: trustScore / 100,
+              elaFileName: elaResults.elaHeatmapFileName,
+            },
+          });
+        }
 
         analysisId = analysisRecord._id;
 
@@ -746,7 +797,7 @@ class ImageService {
           entityId: analysisRecord._id,
           entityType: 'Analysis',
           details: {
-            fileName: fileRecord.originalName || fileRecord.fileName,
+            fileName: effectiveOriginalName,
             trustScore,
             riskCategory,
           },
@@ -758,7 +809,7 @@ class ImageService {
         await NotificationService.createNotification({
           userId,
           type: isCritical ? 'CRITICAL_THREAT' : 'ANALYSIS_COMPLETE',
-          title: `Image Forensics: ${fileRecord.originalName || fileRecord.fileName}`,
+          title: `Image Forensics: ${effectiveOriginalName}`,
           message: `Image analysis finished. Trust Score: ${trustScore}% (${riskAssessment.riskLevel} risk). ${aiAssessment.detected ? 'AI likelihood detected.' : ''}`,
           severity: isCritical ? 'critical' : riskAssessment.riskLevel === 'MEDIUM' ? 'warning' : 'success',
           entityId: analysisRecord._id,
@@ -771,7 +822,7 @@ class ImageService {
     return {
       analysisId,
       fileInfo: {
-        originalName: fileRecord.originalName || fileRecord.fileName,
+        originalName: effectiveOriginalName,
         width: sharpMeta.width,
         height: sharpMeta.height,
         format: sharpMeta.format,

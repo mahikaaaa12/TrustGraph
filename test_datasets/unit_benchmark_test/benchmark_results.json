@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-10-06T17:50:01.220Z",
+    "timestamp": "2026-10-07T04:28:19.310Z",
     "datasetSize": 23,
     "datasetDirectory": "D:\\Projects\\TrustGraph\\test_datasets\\unit_benchmark_test",
     "modelVersion": "1.0.0-onnx-mobilenet",
@@ -161,7 +161,7 @@
           "diagnostic": {
             "modelPath": "D:\\Projects\\TrustGraph\\src\\ml\\artifacts\\ai_image_detector.onnx",
             "enabled": true,
-            "inferenceTimeMs": 605,
+            "inferenceTimeMs": 627,
             "rawLogits": [
               -0.03054739534854889,
               0.052079491317272186
@@ -209,7 +209,7 @@
           "diagnostic": {
             "modelPath": "D:\\Projects\\TrustGraph\\src\\ml\\artifacts\\ai_image_detector.onnx",
             "enabled": true,
-            "inferenceTimeMs": 498,
+            "inferenceTimeMs": 455,
             "rawLogits": [
               -0.039601393043994904,
               0.052220478653907776
@@ -257,7 +257,7 @@
           "diagnostic": {
             "modelPath": "D:\\Projects\\TrustGraph\\src\\ml\\artifacts\\ai_image_detector.onnx",
             "enabled": true,
-            "inferenceTimeMs": 498,
+            "inferenceTimeMs": 425,
             "rawLogits": [
               -0.11202774941921234,
               0.014659516513347626
@@ -305,7 +305,7 @@
           "diagnostic": {
             "modelPath": "D:\\Projects\\TrustGraph\\src\\ml\\artifacts\\ai_image_detector.onnx",
             "enabled": true,
-            "inferenceTimeMs": 586,
+            "inferenceTimeMs": 507,
             "rawLogits": [
               0.1234353631734848,
               -0.03131444752216339
@@ -353,7 +353,7 @@
           "diagnostic": {
             "modelPath": "D:\\Projects\\TrustGraph\\src\\ml\\artifacts\\ai_image_detector.onnx",
             "enabled": true,
-            "inferenceTimeMs": 572,
+            "inferenceTimeMs": 478,
             "rawLogits": [
               -0.056516923010349274,
               0.04770341515541077

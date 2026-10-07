@@ -1,7 +1,7 @@
 # TrustGraph Image Authenticity & AI Detection Evaluation Report
 
 > **Evaluation Mode**: Empirical Ground-Truth Benchmark Evaluation  
-> **Timestamp**: 2026-10-06T17:50:01.220Z  
+> **Timestamp**: 2026-10-07T04:28:19.310Z  
 > **Evaluated Model Version**: `1.0.0-onnx-mobilenet`  
 > **Forensics Engine Version**: `forensics-multi-signal-v1`  
 > **Preprocessing Spec**: sRGB Float32 224x224 (ImageNet Normalization)
