@@ -21,73 +21,101 @@ import {
 } from 'lucide-react';
 import AnalysisLoader from '../components/common/AnalysisLoader';
 
+function normalizeImageAnalysisResponse(response) {
+  if (!response) return null;
+  const body = response.data !== undefined ? response.data : response;
+  if (!body) return null;
+
+  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
+    return body.data;
+  }
+  if (body.analysis && typeof body.analysis === 'object' && !Array.isArray(body.analysis)) {
+    return body.analysis;
+  }
+  if (body.result && typeof body.result === 'object' && !Array.isArray(body.result)) {
+    return body.result;
+  }
+  if (
+    body.overallTrustScore !== undefined ||
+    body.trustScore !== undefined ||
+    body.aiGenerationAssessment !== undefined ||
+    body.exifData !== undefined
+  ) {
+    return body;
+  }
+  return null;
+}
+
 export default function ImagePage() {
   const { showToast } = useErrorLogs();
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [scanStep, setScanStep] = useState(0);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisError, setAnalysisError] = useState(null);
   const [showRawJson, setShowRawJson] = useState(false);
   const [elaImageError, setElaImageError] = useState(false);
   const [activeZoomModal, setActiveZoomModal] = useState(null); // 'original' | 'ela' | null
-
-  const stepsList = [
-    'Image file uploaded to server',
-    'EXIF metadata & camera tags extracted',
-    'Pixel-by-pixel Error Level Analysis (ELA) computed',
-    'AI-generation heuristics evaluated',
-    'Digital manipulation signatures scanned',
-    'Forensics trust score & risk generated',
-  ];
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
       setAnalysisResult(null);
+      setAnalysisError(null);
       setElaImageError(false);
     }
   };
 
   const handleAnalyze = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!selectedFile) {
       showToast('Please select an image file (JPEG, PNG, WEBP).', 'error');
       return;
     }
 
     setLoading(true);
-    setScanStep(1);
-    setAnalysisResult(null);
+    setAnalysisError(null);
     setElaImageError(false);
 
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      setScanStep(2);
-      const uploadRes = await api.post('/files/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // Step 1: Upload image file to server
+      const uploadRes = await api.post('/files/upload', formData);
+
+      if (uploadRes.status < 200 || uploadRes.status >= 300) {
+        throw new Error(uploadRes.data?.message || `Upload failed with status ${uploadRes.status}`);
+      }
 
       const fileObj = uploadRes.data?.data?.file;
-      const fileId = fileObj?._id;
-      if (!fileId) throw new Error('Image upload failed.');
+      const fileId = fileObj?._id || uploadRes.data?.data?._id;
+      if (!fileId) {
+        throw new Error(uploadRes.data?.message || 'Image upload did not return a valid file identifier.');
+      }
 
-      setScanStep(3);
-      await new Promise((r) => setTimeout(r, 200));
-
-      setScanStep(4);
+      // Step 2: Trigger image forensics analysis
       const analyzeRes = await api.post('/images/analyze', { fileId });
 
-      setScanStep(5);
-      await new Promise((r) => setTimeout(r, 200));
+      if (analyzeRes.status < 200 || analyzeRes.status >= 300) {
+        throw new Error(analyzeRes.data?.message || `Analysis failed with status ${analyzeRes.status}`);
+      }
 
-      setScanStep(6);
-      const resultData = analyzeRes.data?.data || analyzeRes.data?.analysis || analyzeRes.data;
-      setAnalysisResult(resultData);
+      console.log('[Image Analysis] response:', analyzeRes);
+      console.log('[Image Analysis] response data:', analyzeRes?.data);
+
+      const normalizedResult = normalizeImageAnalysisResponse(analyzeRes);
+      console.log('[Image Analysis] normalized result:', normalizedResult);
+
+      if (!normalizedResult) {
+        throw new Error('Analysis completed but returned an invalid data payload.');
+      }
+
+      setAnalysisResult(normalizedResult);
       showToast('Image forensics & ELA analysis completed!', 'success');
     } catch (err) {
+      console.error('[Image Analysis] error:', err);
       const errMsg = err?.message || err?.data?.message || 'Image analysis failed.';
+      setAnalysisError(errMsg);
       showToast(errMsg, 'error');
     } finally {
       setLoading(false);
@@ -110,7 +138,18 @@ export default function ImagePage() {
   const aiLikelihood = Math.round((aiAssessment.likelihood ?? 0.05) * 100);
   const manipLikelihood = Math.round((manipAssessment.likelihood ?? 0.10) * 100);
 
-  const originalPreviewUrl = selectedFile ? URL.createObjectURL(selectedFile) : '';
+  const originalPreviewUrl = React.useMemo(() => {
+    if (!selectedFile) return '';
+    return URL.createObjectURL(selectedFile);
+  }, [selectedFile]);
+
+  React.useEffect(() => {
+    return () => {
+      if (originalPreviewUrl) {
+        URL.revokeObjectURL(originalPreviewUrl);
+      }
+    };
+  }, [originalPreviewUrl]);
 
   const getElaHeatmapUrl = () => {
     let apiHost = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim().replace(/\/api\/v1\/?$/, '').replace(/\/api\/?$/, '').replace(/\/+$/, '');
@@ -172,6 +211,36 @@ export default function ImagePage() {
           </button>
         </form>
       </div>
+
+      {analysisError && !loading && (
+        <div className="p-6 bg-white border border-[#D96C6C]/40 rounded-2xl shadow-xs space-y-4">
+          <div className="flex items-start space-x-3">
+            <div className="p-2 rounded-xl bg-[#D96C6C]/15 text-[#D96C6C] shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5 stroke-[1.75]" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-[#2B2B2B]">Image Analysis Failed</h3>
+              <p className="text-xs text-[#6B7280]">{analysisError}</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3 pt-2">
+            <button
+              type="button"
+              onClick={handleAnalyze}
+              className="px-4 py-2 bg-[#8E9A7D] hover:bg-[#7F8F73] text-white text-xs font-semibold rounded-xl transition-colors shadow-xs"
+            >
+              Retry Analysis
+            </button>
+            <button
+              type="button"
+              onClick={() => setAnalysisError(null)}
+              className="px-4 py-2 bg-[#F8F7F4] hover:bg-[#E5E7EB] text-[#2B2B2B] text-xs font-semibold rounded-xl transition-colors border border-[#E5E7EB]"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {analysisResult && (
         <div className="space-y-8">
