@@ -157,23 +157,40 @@ class ImageService {
       'openai',
       'midjourney',
       'stable diffusion',
+      'stablediffusion',
       'novelai',
       'automatic1111',
       'comfyui',
       'bing image creator',
+      'bingimagecreator',
       'firefly',
       'flux',
       'sdxl',
+      'leonardo.ai',
+      'leonardo ai',
+      'ideogram',
+      'imagen',
+      'trainedalgorithmicmedia',
+      'generative ai',
+      'ai generated',
     ];
 
     // 1. Scan EXIF Software Tag, Raw File Buffer & Chunk Metadata for C2PA or AI Signatures
     let detectedSoftwareTag = (exifData?.software || '').toLowerCase();
     let detectedAiTool = aiSoftwareKeywords.find((kw) => detectedSoftwareTag.includes(kw));
 
-    // Scan raw buffer header (first 150KB) for PNG tEXt chunks, C2PA manifests, or embedded tool declarations
+    // Scan raw buffer for PNG chunks, C2PA manifests, XMP or embedded tool declarations
     if (!detectedAiTool && fileBuffer) {
-      const headerStr = fileBuffer.toString('utf-8', 0, Math.min(fileBuffer.length, 150000)).toLowerCase();
-      detectedAiTool = aiSoftwareKeywords.find((kw) => headerStr.includes(kw));
+      // Use latin1 encoding to safely inspect binary buffers without mangling ASCII strings
+      const scanLen = Math.min(fileBuffer.length, 1024 * 1024);
+      const headStr = fileBuffer.toString('latin1', 0, scanLen).toLowerCase();
+      detectedAiTool = aiSoftwareKeywords.find((kw) => headStr.includes(kw));
+      if (!detectedAiTool && fileBuffer.length > scanLen) {
+        // Also scan trailing segment where JUMBF/XMP or PNG end chunks often reside
+        const tailOffset = Math.max(0, fileBuffer.length - 256 * 1024);
+        const tailStr = fileBuffer.toString('latin1', tailOffset).toLowerCase();
+        detectedAiTool = aiSoftwareKeywords.find((kw) => tailStr.includes(kw));
+      }
       if (detectedAiTool) {
         detectedSoftwareTag = `Metadata chunk: "${detectedAiTool}"`;
       }
@@ -235,14 +252,14 @@ class ImageService {
 
     if ((isStandardAiResolution || isLatentGridMultiple) && !hasCameraHardware) {
       if (!detectedAiTool) {
-        aiProbability += 0.30;
+        aiProbability += 0.05;
       }
       signals.push({
-        type: 'standard_ai_resolution',
-        severity: 'medium',
-        confidence: 0.65,
-        weight: 0.30,
-        description: `Image dimensions match latent generator tensor grid (${width}x${height}). (Heuristic signal)`,
+        type: 'resolution_heuristic',
+        severity: 'low',
+        confidence: 0.50,
+        weight: 0.05,
+        description: `Image dimensions (${width}x${height}) match common digital resolutions or tensor grids. (Weak heuristic; does not independently indicate AI generation).`,
         source: 'heuristic',
       });
     }
@@ -524,12 +541,65 @@ class ImageService {
     const manipulationAssessment = this.detectImageManipulation(exifData, sharpMeta, elaResults);
 
     // 5. AI Generation Assessment (Forensics & Heuristics)
-    const aiAssessment = this.detectAiGeneratedImage(exifData, sharpMeta, fileBuffer);
+    const forensicAiAssessment = this.detectAiGeneratedImage(exifData, sharpMeta, fileBuffer);
 
     // 6. Trained Neural Network AI Detector Inference (ONNX Engine)
     const aiModelDetector = await AIImageDetector.detect(fileBuffer);
 
-    // 7. Independent Risk Assessment
+    // 7. Synthesize Forensic Signals and Trained Neural Classifier
+    const hasCameraHardware = !!(exifData.make || exifData.model || exifData.iso || exifData.focalLength);
+    let combinedAiLikelihood = forensicAiAssessment.likelihood;
+    let combinedAiClassification = forensicAiAssessment.classification;
+    const combinedAiSignals = [...forensicAiAssessment.signals];
+
+    if (aiModelDetector && aiModelDetector.detectorStatus === 'AVAILABLE' && aiModelDetector.aiGeneratedProbability !== null) {
+      const modelP = aiModelDetector.aiGeneratedProbability;
+      combinedAiSignals.push({
+        type: 'neural_ai_classifier',
+        severity: modelP >= 0.70 ? 'very_high' : modelP >= 0.50 ? 'high' : modelP >= 0.35 ? 'medium' : 'low',
+        confidence: aiModelDetector.confidence,
+        weight: 0.50,
+        description: `Trained neural classifier estimated P(AI) = ${(modelP * 100).toFixed(1)}% (${aiModelDetector.classification}, model: ${aiModelDetector.modelVersion}).`,
+        source: 'model',
+      });
+
+      if (forensicAiAssessment.detected) {
+        combinedAiLikelihood = Math.max(forensicAiAssessment.likelihood, modelP);
+        combinedAiClassification = 'LIKELY_AI_GENERATED';
+      } else if (modelP >= 0.70) {
+        combinedAiLikelihood = modelP;
+        combinedAiClassification = 'LIKELY_AI_GENERATED';
+      } else if (modelP >= 0.55) {
+        combinedAiLikelihood = modelP;
+        combinedAiClassification = forensicAiAssessment.detected ? 'LIKELY_AI_GENERATED' : 'SUSPICIOUS';
+      } else if (modelP <= 0.25) {
+        combinedAiLikelihood = modelP;
+        combinedAiClassification = hasCameraHardware ? 'UNLIKELY' : 'LIKELY_REAL';
+      } else {
+        combinedAiLikelihood = modelP;
+        combinedAiClassification = 'INCONCLUSIVE';
+      }
+    }
+
+    const isModelAvailable = aiModelDetector && aiModelDetector.detectorStatus === 'AVAILABLE' && aiModelDetector.aiGeneratedProbability !== null;
+    const aiAssessment = {
+      detected: isModelAvailable
+        ? combinedAiClassification === 'LIKELY_AI_GENERATED'
+        : forensicAiAssessment.detected,
+      likelihood: isModelAvailable
+        ? parseFloat(Math.min(0.99, Math.max(0.0, combinedAiLikelihood)).toFixed(4))
+        : (forensicAiAssessment.detected ? forensicAiAssessment.likelihood : null),
+      confidence: forensicAiAssessment.detected
+        ? 0.99
+        : (isModelAvailable ? Math.max(aiModelDetector.confidence, 0.70) : (hasCameraHardware ? 0.75 : 0.40)),
+      classification: isModelAvailable
+        ? combinedAiClassification
+        : (forensicAiAssessment.detected ? 'LIKELY_AI_GENERATED' : (hasCameraHardware ? 'UNLIKELY' : 'INCONCLUSIVE')),
+      method: isModelAvailable ? 'hybrid_neural_forensics' : forensicAiAssessment.method,
+      signals: combinedAiSignals,
+    };
+
+    // 8. Independent Risk Assessment
     const riskAssessment = this.evaluateImageSecurityRisk(fileBuffer, sharpMeta, exifData, aiAssessment, manipulationAssessment);
 
     // Combine Signals
@@ -541,7 +611,6 @@ class ImageService {
     const positiveFactors = [];
     const negativeFactors = [];
 
-    const hasCameraHardware = !!(exifData.make || exifData.model || exifData.iso || exifData.focalLength);
     if (provenanceAssessment.status === 'VERIFIED' && hasCameraHardware) {
       positiveFactors.push('Full camera sensor EXIF provenance verified.');
     }
@@ -554,7 +623,7 @@ class ImageService {
     if (aiAssessment.detected || aiAssessment.likelihood >= 0.55) {
       negativeFactors.push(`High AI-generation likelihood (${(aiAssessment.likelihood * 100).toFixed(0)}%).`);
     } else if (aiAssessment.likelihood >= 0.35) {
-      negativeFactors.push(`Inconclusive provenance — medium AI likelihood (${(aiAssessment.likelihood * 100).toFixed(0)}%).`);
+      negativeFactors.push(`Potential synthetic alteration or medium AI likelihood (${(aiAssessment.likelihood * 100).toFixed(0)}%).`);
     }
 
     // Trust Score Synthesis (0 - 100)
@@ -562,10 +631,10 @@ class ImageService {
     if (aiAssessment.classification === 'LIKELY_AI_GENERATED') {
       trustScore -= (aiAssessment.likelihood * 60.0);
     } else if (aiAssessment.classification === 'SUSPICIOUS') {
-      trustScore -= (aiAssessment.likelihood * 30.0);
+      trustScore -= (aiAssessment.likelihood * 40.0);
     }
-    if (aiModelDetector.detectorStatus === 'AVAILABLE' && aiModelDetector.aiGeneratedProbability) {
-      trustScore -= (aiModelDetector.aiGeneratedProbability * 40.0);
+    if (aiModelDetector.detectorStatus === 'AVAILABLE' && aiModelDetector.aiGeneratedProbability >= 0.65) {
+      trustScore -= 10.0;
     }
     trustScore -= (manipulationAssessment.likelihood * 25.0);
     if (riskAssessment.riskScore > 20) trustScore -= (riskAssessment.riskScore * 0.3);
@@ -740,7 +809,9 @@ class ImageService {
             `Dimensions: ${sharpMeta.width}x${sharpMeta.height} (${sharpMeta.format.toUpperCase()}).`,
             aiAssessment.detected
               ? `AI DETECTED: ${aiAssessment.classification} likelihood of AI generation (${(aiAssessment.likelihood * 100).toFixed(0)}%).`
-              : 'AI CLEAN: Image exhibits physical sensor characteristics.',
+              : hasCameraHardware
+              ? 'AI CLEAN: Image exhibits physical sensor characteristics.'
+              : 'AI UNVERIFIED: No camera sensor provenance or explicit AI signatures found.',
             manipulationAssessment.detected
               ? `MANIPULATION: Digital editing software traces detected (${manipulationAssessment.classification}).`
               : 'MANIPULATION CLEAN: No explicit digital editing software signatures found.',
@@ -770,7 +841,9 @@ class ImageService {
               `Dimensions: ${sharpMeta.width}x${sharpMeta.height} (${sharpMeta.format.toUpperCase()}).`,
               aiAssessment.detected
                 ? `AI DETECTED: ${aiAssessment.classification} likelihood of AI generation (${(aiAssessment.likelihood * 100).toFixed(0)}%).`
-                : 'AI CLEAN: Image exhibits physical sensor characteristics.',
+                : hasCameraHardware
+                ? 'AI CLEAN: Image exhibits physical sensor characteristics.'
+                : 'AI UNVERIFIED: No camera sensor provenance or explicit AI signatures found.',
               manipulationAssessment.detected
                 ? `MANIPULATION: Digital editing software traces detected (${manipulationAssessment.classification}).`
                 : 'MANIPULATION CLEAN: No explicit digital editing software signatures found.',
@@ -831,6 +904,7 @@ class ImageService {
       exifData,
       aiModelDetector,
       aiGenerationAssessment: aiAssessment,
+      aiAssessment,
       manipulationAssessment,
       provenanceAssessment,
       riskAssessment,
@@ -843,6 +917,7 @@ class ImageService {
       negativeFactors,
       recommendations: riskAssessment.recommendations,
       overallTrustScore: trustScore,
+      trustScore,
       confidenceScore,
       riskCategory,
       // Standardized Evidence Layer

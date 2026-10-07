@@ -348,14 +348,32 @@ export default function PostVerificationPage() {
             <div className="p-4 rounded-2xl border border-gray-200 bg-white space-y-1">
               <span className="text-xs font-bold text-gray-400 tracking-wider uppercase">IMAGE</span>
               <div className="text-2xl font-extrabold text-gray-800">
-                {result.sections?.imageForensics?.technicalEvidence?.elaScore !== undefined
-                  ? 100 - result.sections.imageForensics.technicalEvidence.elaScore
+                {result.sections?.imageForensics?.technicalEvidence?.aiProbability !== undefined && result.sections?.imageForensics?.technicalEvidence?.aiProbability !== null
+                  ? Math.round(100 - result.sections.imageForensics.technicalEvidence.aiProbability * 100)
+                  : result.sections?.imageForensics?.technicalEvidence?.elaScore !== undefined
+                  ? Math.max(10, Math.round(100 - result.sections.imageForensics.technicalEvidence.elaScore * 4))
                   : result.sections?.imageForensics?.status !== 'N/A'
                   ? 92
                   : 'N/A'}
               </div>
-              <p className="text-xs font-semibold text-[#8E9A7D]">
-                Authenticity: {result.sections?.imageForensics?.status === 'Original' ? 'High' : result.sections?.imageForensics?.status === 'N/A' ? 'N/A' : 'Moderate'}
+              <p className={`text-xs font-semibold ${
+                result.sections?.imageForensics?.status === 'AI Generated' || (result.sections?.imageForensics?.technicalEvidence?.aiProbability >= 0.5)
+                  ? 'text-red-600'
+                  : result.sections?.imageForensics?.status === 'Original'
+                  ? 'text-[#8E9A7D]'
+                  : result.sections?.imageForensics?.status === 'N/A'
+                  ? 'text-gray-400'
+                  : 'text-yellow-600'
+              }`}>
+                Authenticity: {
+                  result.sections?.imageForensics?.status === 'AI Generated' || (result.sections?.imageForensics?.technicalEvidence?.aiProbability >= 0.5)
+                    ? 'Low'
+                    : result.sections?.imageForensics?.status === 'Original'
+                    ? 'High'
+                    : result.sections?.imageForensics?.status === 'N/A'
+                    ? 'N/A'
+                    : 'Moderate'
+                }
               </p>
             </div>
 
@@ -363,12 +381,17 @@ export default function PostVerificationPage() {
             <div className="p-4 rounded-2xl border border-gray-200 bg-white space-y-1">
               <span className="text-xs font-bold text-gray-400 tracking-wider uppercase">CAPTION</span>
               <div className="text-2xl font-extrabold text-gray-800">
-                {result.sections?.aiContentSignals?.technicalEvidence?.aiTextLikelihood !== undefined
+                {result.sections?.aiContentSignals?.technicalEvidence?.aiTextLikelihood !== undefined && captionText
                   ? Math.round(100 - result.sections.aiContentSignals.technicalEvidence.aiTextLikelihood * 100)
-                  : 78}
+                  : captionText
+                  ? 78
+                  : 'N/A'}
               </div>
-              <p className="text-xs font-semibold text-yellow-600">
-                Authenticity: {result.aiGenerationSignal === 'High' ? 'Moderate' : 'High'}
+              <p className={`text-xs font-semibold ${
+                !captionText ? 'text-gray-400' :
+                result.sections?.aiContentSignals?.technicalEvidence?.aiTextLikelihood >= 0.5 ? 'text-yellow-600' : 'text-green-600'
+              }`}>
+                Authenticity: {!captionText ? 'N/A' : (result.sections?.aiContentSignals?.technicalEvidence?.aiTextLikelihood >= 0.5 ? 'Moderate' : 'High')}
               </p>
             </div>
 
@@ -402,13 +425,20 @@ export default function PostVerificationPage() {
               Findings & Evidence
             </h3>
             <div className="space-y-3">
-              {/* Mandatory clean evidence bullets matching prompt specifications */}
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm">
-                <CheckCircle2 size={16} className="text-green-600 mt-0.5 shrink-0" />
-                <span className="text-gray-700">No significant image manipulation detected</span>
-              </div>
+              {/* Image AI vs Clean manipulation detection alerts */}
+              {result.sections?.imageForensics?.status === 'AI Generated' || (result.sections?.aiContentSignals?.technicalEvidence?.aiImageLikelihood >= 0.50) ? (
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-red-50/70 border border-red-200 text-sm">
+                  <AlertTriangle size={16} className="text-red-600 mt-0.5 shrink-0" />
+                  <span className="text-gray-800">Image contains strong AI-generation signals (P(AI): {Math.round((result.sections?.aiContentSignals?.technicalEvidence?.aiImageLikelihood || 0.95) * 100)}%)</span>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm">
+                  <CheckCircle2 size={16} className="text-green-600 mt-0.5 shrink-0" />
+                  <span className="text-gray-700">No significant image manipulation detected</span>
+                </div>
+              )}
 
-              {result.aiGenerationSignal === 'High' || result.aiGenerationSignal === 'Moderate' ? (
+              {result.sections?.aiContentSignals?.technicalEvidence?.aiTextLikelihood >= 0.50 ? (
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-yellow-50/70 border border-yellow-200 text-sm">
                   <AlertTriangle size={16} className="text-yellow-600 mt-0.5 shrink-0" />
                   <span className="text-gray-800">Caption contains strong AI-generation signals</span>

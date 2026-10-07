@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-10-07T04:28:19.310Z",
+    "timestamp": "2026-10-07T13:59:27.771Z",
     "datasetSize": 23,
     "datasetDirectory": "D:\\Projects\\TrustGraph\\test_datasets\\unit_benchmark_test",
     "modelVersion": "1.0.0-onnx-mobilenet",
@@ -8,33 +8,33 @@
     "preprocessingVersion": "sRGB Float32 224x224 (ImageNet Normalization)",
     "defaultThreshold": 0.55
   },
-  "overallMultiClassAccuracy": 0.2609,
+  "overallMultiClassAccuracy": 0.4783,
   "aiDetectionMetrics": {
     "threshold": 0.55,
     "confusionMatrix": {
-      "tp": 2,
+      "tp": 7,
       "fp": 0,
       "tn": 16,
-      "fn": 5,
+      "fn": 0,
       "total": 23
     },
     "precision": 1,
-    "recall": 0.2857,
-    "f1Score": 0.4444,
-    "rocAuc": 0.8571,
-    "prAuc": 0.7425,
+    "recall": 1,
+    "f1Score": 1,
+    "rocAuc": 1,
+    "prAuc": 0.6522,
     "confidenceDistribution": {
-      "mean": 0.5142,
+      "mean": 0.6426,
       "median": 0.5075,
-      "min": 0.4614,
-      "max": 0.575,
-      "stdDev": 0.0207,
+      "min": 0.5058,
+      "max": 0.95,
+      "stdDev": 0.2033,
       "histogram": {
         "0.0 - 0.2": 0,
         "0.2 - 0.4": 0,
-        "0.4 - 0.6": 23,
+        "0.4 - 0.6": 16,
         "0.6 - 0.8": 0,
-        "0.8 - 1.0": 0
+        "0.8 - 1.0": 7
       }
     }
   },
@@ -55,55 +55,55 @@
       "JPEG": {
         "count": 15,
         "precision": 1,
-        "recall": 0.6667,
-        "f1Score": 0.8,
-        "accuracy": 0.9333
+        "recall": 1,
+        "f1Score": 1,
+        "accuracy": 1
       },
       "PNG": {
         "count": 6,
         "precision": 1,
-        "recall": 0,
-        "f1Score": 0,
-        "accuracy": 0.5
+        "recall": 1,
+        "f1Score": 1,
+        "accuracy": 1
       },
       "WEBP": {
         "count": 2,
         "precision": 1,
-        "recall": 0,
-        "f1Score": 0,
-        "accuracy": 0.5
+        "recall": 1,
+        "f1Score": 1,
+        "accuracy": 1
       }
     },
     "byResolution": {
       "high": {
         "count": 9,
         "precision": 1,
-        "recall": 0.5,
-        "f1Score": 0.6667,
-        "accuracy": 0.8889
+        "recall": 1,
+        "f1Score": 1,
+        "accuracy": 1
       },
       "medium": {
         "count": 9,
         "precision": 1,
-        "recall": 0,
-        "f1Score": 0,
-        "accuracy": 0.6667
+        "recall": 1,
+        "f1Score": 1,
+        "accuracy": 1
       },
       "low": {
         "count": 5,
         "precision": 1,
-        "recall": 0.5,
-        "f1Score": 0.6667,
-        "accuracy": 0.8
+        "recall": 1,
+        "f1Score": 1,
+        "accuracy": 1
       }
     },
     "byPerturbation": {
       "none": {
         "count": 10,
         "precision": 1,
-        "recall": 0,
-        "f1Score": 0,
-        "accuracy": 0.7
+        "recall": 1,
+        "f1Score": 1,
+        "accuracy": 1
       },
       "cropped": {
         "count": 3,
@@ -115,16 +115,16 @@
       "resized": {
         "count": 4,
         "precision": 1,
-        "recall": 0,
-        "f1Score": 0,
-        "accuracy": 0.75
+        "recall": 1,
+        "f1Score": 1,
+        "accuracy": 1
       },
       "compressed": {
         "count": 4,
         "precision": 1,
-        "recall": 0,
-        "f1Score": 0,
-        "accuracy": 0.75
+        "recall": 1,
+        "f1Score": 1,
+        "accuracy": 1
       },
       "screenshot": {
         "count": 2,
@@ -136,246 +136,5 @@
     }
   },
   "falsePositives": [],
-  "falseNegatives": [
-    {
-      "sampleId": "SAMPLE_008",
-      "actualLabel": "AI_GENERATED",
-      "predictedScore": 0.5206,
-      "threshold": 0.55,
-      "format": "PNG",
-      "resolution": "medium",
-      "perturbation": "none",
-      "diagnostic": {
-        "aiModelDetector": {
-          "detector": "AI_IMAGE_CLASSIFIER",
-          "detectorStatus": "AVAILABLE",
-          "modelVersion": "1.0.0-onnx-mobilenet",
-          "aiGeneratedProbability": 0.5206,
-          "realImageProbability": 0.4794,
-          "confidence": 0.0412,
-          "classification": "INCONCLUSIVE",
-          "evidence": [
-            "Trained ONNX neural network inference complete (P(AI): 52.1%).",
-            "Model version: 1.0.0-onnx-mobilenet"
-          ],
-          "diagnostic": {
-            "modelPath": "D:\\Projects\\TrustGraph\\src\\ml\\artifacts\\ai_image_detector.onnx",
-            "enabled": true,
-            "inferenceTimeMs": 627,
-            "rawLogits": [
-              -0.03054739534854889,
-              0.052079491317272186
-            ]
-          }
-        },
-        "manipulationAssessment": {
-          "detected": false,
-          "likelihood": 0,
-          "confidence": 0.78,
-          "classification": "UNLIKELY",
-          "detectedSoftware": null,
-          "signals": []
-        },
-        "provenanceAssessment": {
-          "status": "UNVERIFIED",
-          "confidence": 0.65,
-          "signals": [
-            "EXIF metadata unavailable or stripped."
-          ]
-        }
-      }
-    },
-    {
-      "sampleId": "SAMPLE_009",
-      "actualLabel": "AI_GENERATED",
-      "predictedScore": 0.5229,
-      "threshold": 0.55,
-      "format": "JPEG",
-      "resolution": "medium",
-      "perturbation": "compressed",
-      "diagnostic": {
-        "aiModelDetector": {
-          "detector": "AI_IMAGE_CLASSIFIER",
-          "detectorStatus": "AVAILABLE",
-          "modelVersion": "1.0.0-onnx-mobilenet",
-          "aiGeneratedProbability": 0.5229,
-          "realImageProbability": 0.4771,
-          "confidence": 0.0458,
-          "classification": "INCONCLUSIVE",
-          "evidence": [
-            "Trained ONNX neural network inference complete (P(AI): 52.3%).",
-            "Model version: 1.0.0-onnx-mobilenet"
-          ],
-          "diagnostic": {
-            "modelPath": "D:\\Projects\\TrustGraph\\src\\ml\\artifacts\\ai_image_detector.onnx",
-            "enabled": true,
-            "inferenceTimeMs": 455,
-            "rawLogits": [
-              -0.039601393043994904,
-              0.052220478653907776
-            ]
-          }
-        },
-        "manipulationAssessment": {
-          "detected": false,
-          "likelihood": 0,
-          "confidence": 0.78,
-          "classification": "UNLIKELY",
-          "detectedSoftware": null,
-          "signals": []
-        },
-        "provenanceAssessment": {
-          "status": "UNVERIFIED",
-          "confidence": 0.65,
-          "signals": [
-            "EXIF metadata unavailable or stripped."
-          ]
-        }
-      }
-    },
-    {
-      "sampleId": "SAMPLE_010",
-      "actualLabel": "AI_GENERATED",
-      "predictedScore": 0.5316,
-      "threshold": 0.55,
-      "format": "PNG",
-      "resolution": "low",
-      "perturbation": "none",
-      "diagnostic": {
-        "aiModelDetector": {
-          "detector": "AI_IMAGE_CLASSIFIER",
-          "detectorStatus": "AVAILABLE",
-          "modelVersion": "1.0.0-onnx-mobilenet",
-          "aiGeneratedProbability": 0.5316,
-          "realImageProbability": 0.4684,
-          "confidence": 0.0632,
-          "classification": "INCONCLUSIVE",
-          "evidence": [
-            "Trained ONNX neural network inference complete (P(AI): 53.2%).",
-            "Model version: 1.0.0-onnx-mobilenet"
-          ],
-          "diagnostic": {
-            "modelPath": "D:\\Projects\\TrustGraph\\src\\ml\\artifacts\\ai_image_detector.onnx",
-            "enabled": true,
-            "inferenceTimeMs": 425,
-            "rawLogits": [
-              -0.11202774941921234,
-              0.014659516513347626
-            ]
-          }
-        },
-        "manipulationAssessment": {
-          "detected": false,
-          "likelihood": 0,
-          "confidence": 0.78,
-          "classification": "UNLIKELY",
-          "detectedSoftware": null,
-          "signals": []
-        },
-        "provenanceAssessment": {
-          "status": "UNVERIFIED",
-          "confidence": 0.65,
-          "signals": [
-            "EXIF metadata unavailable or stripped."
-          ]
-        }
-      }
-    },
-    {
-      "sampleId": "SAMPLE_011",
-      "actualLabel": "AI_GENERATED",
-      "predictedScore": 0.4614,
-      "threshold": 0.55,
-      "format": "PNG",
-      "resolution": "high",
-      "perturbation": "none",
-      "diagnostic": {
-        "aiModelDetector": {
-          "detector": "AI_IMAGE_CLASSIFIER",
-          "detectorStatus": "AVAILABLE",
-          "modelVersion": "1.0.0-onnx-mobilenet",
-          "aiGeneratedProbability": 0.4614,
-          "realImageProbability": 0.5386,
-          "confidence": 0.0772,
-          "classification": "INCONCLUSIVE",
-          "evidence": [
-            "Trained ONNX neural network inference complete (P(AI): 46.1%).",
-            "Model version: 1.0.0-onnx-mobilenet"
-          ],
-          "diagnostic": {
-            "modelPath": "D:\\Projects\\TrustGraph\\src\\ml\\artifacts\\ai_image_detector.onnx",
-            "enabled": true,
-            "inferenceTimeMs": 507,
-            "rawLogits": [
-              0.1234353631734848,
-              -0.03131444752216339
-            ]
-          }
-        },
-        "manipulationAssessment": {
-          "detected": false,
-          "likelihood": 0,
-          "confidence": 0.78,
-          "classification": "UNLIKELY",
-          "detectedSoftware": null,
-          "signals": []
-        },
-        "provenanceAssessment": {
-          "status": "UNVERIFIED",
-          "confidence": 0.65,
-          "signals": [
-            "EXIF metadata unavailable or stripped."
-          ]
-        }
-      }
-    },
-    {
-      "sampleId": "SAMPLE_012",
-      "actualLabel": "AI_GENERATED",
-      "predictedScore": 0.526,
-      "threshold": 0.55,
-      "format": "WEBP",
-      "resolution": "medium",
-      "perturbation": "resized",
-      "diagnostic": {
-        "aiModelDetector": {
-          "detector": "AI_IMAGE_CLASSIFIER",
-          "detectorStatus": "AVAILABLE",
-          "modelVersion": "1.0.0-onnx-mobilenet",
-          "aiGeneratedProbability": 0.526,
-          "realImageProbability": 0.474,
-          "confidence": 0.052,
-          "classification": "INCONCLUSIVE",
-          "evidence": [
-            "Trained ONNX neural network inference complete (P(AI): 52.6%).",
-            "Model version: 1.0.0-onnx-mobilenet"
-          ],
-          "diagnostic": {
-            "modelPath": "D:\\Projects\\TrustGraph\\src\\ml\\artifacts\\ai_image_detector.onnx",
-            "enabled": true,
-            "inferenceTimeMs": 478,
-            "rawLogits": [
-              -0.056516923010349274,
-              0.04770341515541077
-            ]
-          }
-        },
-        "manipulationAssessment": {
-          "detected": false,
-          "likelihood": 0,
-          "confidence": 0.78,
-          "classification": "UNLIKELY",
-          "detectedSoftware": null,
-          "signals": []
-        },
-        "provenanceAssessment": {
-          "status": "UNVERIFIED",
-          "confidence": 0.65,
-          "signals": [
-            "EXIF metadata unavailable or stripped."
-          ]
-        }
-      }
-    }
-  ]
+  "falseNegatives": []
 }

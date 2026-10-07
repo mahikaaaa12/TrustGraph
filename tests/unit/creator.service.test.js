@@ -1,6 +1,7 @@
 const CreatorService = require('../../src/services/creator.service');
 const InstagramService = require('../../src/services/instagram.service');
 const WebsiteService = require('../../src/services/website.service');
+const ImageService = require('../../src/services/image.service');
 
 describe('InstagramService & CreatorService Unit Tests', () => {
   beforeEach(() => {
@@ -11,6 +12,16 @@ describe('InstagramService & CreatorService Unit Tests', () => {
         phishingRisk: { classification: 'LOW', isPhishing: false },
         domainAnalysis: { hasMxRecords: true, heuristicSecurityStatus: 'HEALTHY' },
       };
+    });
+    jest.spyOn(CreatorService, 'fetchImageSafely').mockResolvedValue('mock_file_id_123');
+    jest.spyOn(ImageService, 'analyzeImage').mockResolvedValue({
+      overallTrustScore: 88,
+      trustScore: 88,
+      confidenceScore: 0.85,
+      aiGenerationAssessment: { detected: false, likelihood: 0.1, classification: 'UNLIKELY', signals: [] },
+      manipulationAssessment: { detected: false, likelihood: 0.0, classification: 'UNLIKELY', signals: [] },
+      provenanceAssessment: { status: 'VERIFIED', signals: [] },
+      exifData: { hasExifData: true },
     });
   });
 

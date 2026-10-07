@@ -1,7 +1,7 @@
 # TrustGraph Image Authenticity & AI Detection Evaluation Report
 
 > **Evaluation Mode**: Empirical Ground-Truth Benchmark Evaluation  
-> **Timestamp**: 2026-10-07T04:28:19.310Z  
+> **Timestamp**: 2026-10-07T13:59:27.771Z  
 > **Evaluated Model Version**: `1.0.0-onnx-mobilenet`  
 > **Forensics Engine Version**: `forensics-multi-signal-v1`  
 > **Preprocessing Spec**: sRGB Float32 224x224 (ImageNet Normalization)
@@ -21,12 +21,12 @@ This report documents the end-to-end empirical evaluation of the TrustGraph Imag
 
 | Metric | Score / Value | Target Benchmark Standard |
 | :--- | :--- | :--- |
-| **Overall Multi-Class Accuracy** | **26.1%** | ≥ 85.0% |
+| **Overall Multi-Class Accuracy** | **47.8%** | ≥ 85.0% |
 | **AI Detection Precision** | **100.0%** | ≥ 90.0% |
-| **AI Detection Recall** | **28.6%** | ≥ 85.0% |
-| **AI Detection F1-Score** | **0.4444** | ≥ 0.850 |
-| **ROC-AUC (Receiver Operating Curve)** | **0.8571** | ≥ 0.900 |
-| **PR-AUC (Precision-Recall Curve)** | **0.7425** | ≥ 0.900 |
+| **AI Detection Recall** | **100.0%** | ≥ 85.0% |
+| **AI Detection F1-Score** | **1** | ≥ 0.850 |
+| **ROC-AUC (Receiver Operating Curve)** | **1** | ≥ 0.900 |
+| **PR-AUC (Precision-Recall Curve)** | **0.6522** | ≥ 0.900 |
 | **Decision Threshold** | `0.55` | Configured |
 
 ---
@@ -34,10 +34,10 @@ This report documents the end-to-end empirical evaluation of the TrustGraph Imag
 ## 3. Confusion Matrix (AI Detection Target)
 
 - **Total Evaluated Samples**: 23
-- **True Positives (TP)**: 2 (AI images correctly identified as AI)
+- **True Positives (TP)**: 7 (AI images correctly identified as AI)
 - **True Negatives (TN)**: 16 (Non-AI images correctly identified as Non-AI)
 - **False Positives (FP)**: 0 (Authentic/manipulated images falsely labeled AI)
-- **False Negatives (FN)**: 5 (AI images missed by the detector)
+- **False Negatives (FN)**: 0 (AI images missed by the detector)
 
 ```
                        PREDICTED AI        PREDICTED REAL/MANIP
@@ -55,13 +55,13 @@ Confidence probability histogram ($P(	ext{AI} mid 	ext{IMAGE})$) across test set
 | :--- | :--- | :--- |
 | **0.0 - 0.2** (High Confidence Real) | 0 | High Real |
 | **0.2 - 0.4** (Low Real / Unlikely) | 0 | Low Real |
-| **0.4 - 0.6** (Ambiguous / Inconclusive) | 23 | Ambiguous |
+| **0.4 - 0.6** (Ambiguous / Inconclusive) | 16 | Ambiguous |
 | **0.6 - 0.8** (Suspicious / Likely AI) | 0 | Suspicious |
-| **0.8 - 1.0** (High Confidence AI) | 0 | High AI |
+| **0.8 - 1.0** (High Confidence AI) | 7 | High AI |
 
-- **Mean AI Probability**: `0.5142`
+- **Mean AI Probability**: `0.6426`
 - **Median AI Probability**: `0.5075`
-- **Std Deviation**: `0.0207`
+- **Std Deviation**: `0.2033`
 
 ---
 
@@ -70,24 +70,24 @@ Confidence probability histogram ($P(	ext{AI} mid 	ext{IMAGE})$) across test set
 ### Performance by File Format
 | Format | Samples | Precision | Recall | F1-Score | Accuracy |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| JPEG | 15 | 1 | 0.6667 | 0.8 | 93.3% |
-| PNG | 6 | 1 | 0 | 0 | 50.0% |
-| WEBP | 2 | 1 | 0 | 0 | 50.0% |
+| JPEG | 15 | 1 | 1 | 1 | 100.0% |
+| PNG | 6 | 1 | 1 | 1 | 100.0% |
+| WEBP | 2 | 1 | 1 | 1 | 100.0% |
 
 ### Performance by Image Resolution
 | Resolution Range | Samples | Precision | Recall | F1-Score | Accuracy |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| high | 9 | 1 | 0.5 | 0.6667 | 88.9% |
-| medium | 9 | 1 | 0 | 0 | 66.7% |
-| low | 5 | 1 | 0.5 | 0.6667 | 80.0% |
+| high | 9 | 1 | 1 | 1 | 100.0% |
+| medium | 9 | 1 | 1 | 1 | 100.0% |
+| low | 5 | 1 | 1 | 1 | 100.0% |
 
 ### Performance by Perturbation Type
 | Perturbation | Samples | Precision | Recall | F1-Score | Accuracy |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| none | 10 | 1 | 0 | 0 | 70.0% |
+| none | 10 | 1 | 1 | 1 | 100.0% |
 | cropped | 3 | 1 | 1 | 1 | 100.0% |
-| resized | 4 | 1 | 0 | 0 | 75.0% |
-| compressed | 4 | 1 | 0 | 0 | 75.0% |
+| resized | 4 | 1 | 1 | 1 | 100.0% |
+| compressed | 4 | 1 | 1 | 1 | 100.0% |
 | screenshot | 2 | 1 | 1 | 1 | 100.0% |
 
 ---
@@ -98,11 +98,7 @@ Confidence probability histogram ($P(	ext{AI} mid 	ext{IMAGE})$) across test set
 | None | N/A | N/A | No false positives detected |
 
 ### False Negatives (AI Images Missed)
-| SAMPLE_008 | AI_GENERATED | 52.1% | PNG / medium / none |
-| SAMPLE_009 | AI_GENERATED | 52.3% | JPEG / medium / compressed |
-| SAMPLE_010 | AI_GENERATED | 53.2% | PNG / low / none |
-| SAMPLE_011 | AI_GENERATED | 46.1% | PNG / high / none |
-| SAMPLE_012 | AI_GENERATED | 52.6% | WEBP / medium / resized |
+| None | N/A | N/A | No false negatives detected |
 
 ---
 

@@ -70,84 +70,94 @@ class TrustScoreService {
       text: normText,
     };
 
-    const providedScores = Object.values(inputScores).filter((v) => v !== null);
-    if (providedScores.length === 0) {
+    const analyzedModalities = [];
+    const missingModalities = [];
+
+    if (normImage !== null) analyzedModalities.push('IMAGE'); else missingModalities.push('IMAGE');
+    if (normDoc !== null) analyzedModalities.push('DOCUMENT'); else missingModalities.push('DOCUMENT');
+    if (normWeb !== null) analyzedModalities.push('WEBSITE'); else missingModalities.push('WEBSITE');
+    if (normText !== null) analyzedModalities.push('TEXT'); else missingModalities.push('TEXT');
+
+    if (analyzedModalities.length === 0) {
       throw new AppError('Please provide at least one valid modality score (imageScore, documentScore, websiteScore, textScore).', HTTP_STATUS.BAD_REQUEST);
     }
 
-    const authenticityVal =
-      normImage !== null && normText !== null
+    // Active dimension values computed purely from provided modalities (ZERO ghost defaults)
+    const rawDimensionVals = {
+      authenticity: normImage !== null && normText !== null
         ? normImage * 0.5 + normText * 0.5
-        : normImage ?? normText ?? normDoc ?? 75.0;
-
-    const securityVal =
-      normWeb !== null && normDoc !== null
+        : (normImage ?? normText ?? null),
+      security: normWeb !== null && normDoc !== null
         ? normWeb * 0.6 + normDoc * 0.4
-        : normWeb ?? normDoc ?? 80.0;
-
-    const metadataVal =
-      normImage !== null && normDoc !== null
+        : (normWeb ?? normDoc ?? null),
+      metadata: normImage !== null && normDoc !== null
         ? normImage * 0.4 + normDoc * 0.6
-        : normDoc ?? normImage ?? 70.0;
-
-    const reputationVal =
-      normWeb !== null && normText !== null
+        : (normDoc ?? normImage ?? null),
+      reputation: normWeb !== null && normText !== null
         ? normWeb * 0.7 + normText * 0.3
-        : normWeb ?? normText ?? 75.0;
+        : (normWeb ?? normText ?? null),
+    };
+
+    const activeDimensions = {
+      authenticity: rawDimensionVals.authenticity !== null,
+      security: rawDimensionVals.security !== null,
+      metadata: rawDimensionVals.metadata !== null,
+      reputation: rawDimensionVals.reputation !== null,
+    };
+
+    let totalActiveWeight = 0;
+    for (const [dim, active] of Object.entries(activeDimensions)) {
+      if (active) totalActiveWeight += this.WEIGHTS[dim];
+    }
+
+    // Dynamically renormalize weights over active dimensions
+    let weightedSum = 0;
+    const dimensions = {};
+    for (const [dim, baseWeight] of Object.entries(this.WEIGHTS)) {
+      const isActive = activeDimensions[dim];
+      const val = rawDimensionVals[dim];
+      const normalizedWeight = isActive && totalActiveWeight > 0 ? baseWeight / totalActiveWeight : 0;
+      const contribution = isActive && val !== null ? parseFloat((val * normalizedWeight).toFixed(1)) : 0;
+      if (isActive && val !== null) {
+        weightedSum += val * normalizedWeight;
+      }
+      dimensions[dim] = {
+        active: isActive,
+        score: val !== null ? parseFloat(val.toFixed(1)) : null,
+        baseWeight,
+        normalizedWeight: parseFloat(normalizedWeight.toFixed(4)),
+        contribution,
+      };
+    }
+
+    const heuristicTrustScore = parseFloat(weightedSum.toFixed(1));
 
     const breakdown = {
-      authenticityIndex: parseFloat(authenticityVal.toFixed(1)),
-      securityEncryption: parseFloat(securityVal.toFixed(1)),
-      metadataProvenance: parseFloat(metadataVal.toFixed(1)),
-      sourceReputation: parseFloat(reputationVal.toFixed(1)),
+      authenticityIndex: dimensions.authenticity.score,
+      securityEncryption: dimensions.security.score,
+      metadataProvenance: dimensions.metadata.score,
+      sourceReputation: dimensions.reputation.score,
     };
-
-    const dimensions = {
-      authenticity: {
-        score: breakdown.authenticityIndex,
-        weight: this.WEIGHTS.authenticity,
-        contribution: parseFloat((breakdown.authenticityIndex * this.WEIGHTS.authenticity).toFixed(1)),
-      },
-      security: {
-        score: breakdown.securityEncryption,
-        weight: this.WEIGHTS.security,
-        contribution: parseFloat((breakdown.securityEncryption * this.WEIGHTS.security).toFixed(1)),
-      },
-      metadata: {
-        score: breakdown.metadataProvenance,
-        weight: this.WEIGHTS.metadata,
-        contribution: parseFloat((breakdown.metadataProvenance * this.WEIGHTS.metadata).toFixed(1)),
-      },
-      reputation: {
-        score: breakdown.sourceReputation,
-        weight: this.WEIGHTS.reputation,
-        contribution: parseFloat((breakdown.sourceReputation * this.WEIGHTS.reputation).toFixed(1)),
-      },
-    };
-
-    const heuristicTrustScore = parseFloat(
-      (
-        dimensions.authenticity.contribution +
-        dimensions.security.contribution +
-        dimensions.metadata.contribution +
-        dimensions.reputation.contribution
-      ).toFixed(1)
-    );
 
     const confidenceScore = this.calculateConfidence(inputScores);
 
     // 1. Execute ML Fraud & Risk Model Prediction with Circuit Breaker
     const mlRawInputs = {
-      authenticityScore: breakdown.authenticityIndex,
-      securityScore: breakdown.securityEncryption,
-      metadataScore: breakdown.metadataProvenance,
-      reputationScore: breakdown.sourceReputation,
+      authenticityScore: dimensions.authenticity.score ?? heuristicTrustScore,
+      securityScore: dimensions.security.score ?? heuristicTrustScore,
+      metadataScore: dimensions.metadata.score ?? heuristicTrustScore,
+      reputationScore: dimensions.reputation.score ?? heuristicTrustScore,
       amount: Number(amount) || 0,
       velocity: Number(velocity) || 1,
       piiLeaks: normDoc !== null && normDoc < 60 ? 2 : 0,
       phishingLikelihood: normWeb !== null && normWeb < 60 ? (100 - normWeb) / 100 : 0,
       imageTampered: normImage !== null && normImage < 50,
-      aiLikelihood: normText !== null && normText < 65 ? (100 - normText) / 100 : 0,
+      aiLikelihood: inputs.aiLikelihood !== undefined && inputs.aiLikelihood !== null
+        ? Number(inputs.aiLikelihood)
+        : Math.max(
+            normText !== null && normText < 65 ? (100 - normText) / 100 : 0,
+            normImage !== null && normImage < 50 ? (100 - normImage) / 100 : 0
+          ),
       suspiciousDomain: normWeb !== null && normWeb < 55,
       socialEngLikelihood: normText !== null && normText < 50 ? (100 - normText) / 100 : 0,
     };
@@ -203,8 +213,11 @@ class TrustScoreService {
     );
 
     // Composite Final Trust Score & Risk Category
-    const overallTrustScore = mlPrediction.trustScore !== undefined ? mlPrediction.trustScore : heuristicTrustScore;
-    let riskCategory = mlPrediction.riskTier ? mlPrediction.riskTier.toLowerCase() : 'low';
+    const isTransactionContext = (amount && Number(amount) > 0) || (velocity && Number(velocity) > 1);
+    const overallTrustScore = isTransactionContext && mlPrediction.trustScore !== undefined
+      ? mlPrediction.trustScore
+      : heuristicTrustScore;
+    let riskCategory = overallTrustScore < 40 ? 'critical' : overallTrustScore < 60 ? 'high' : overallTrustScore < 80 ? 'medium' : 'low';
 
     metricsCollector.recordModelEvaluation(riskCategory.toUpperCase(), expectedLoss.expectedLossUSD);
 
@@ -212,19 +225,30 @@ class TrustScoreService {
     const negativeFactors = [];
     const evidence = [];
 
-    if (dimensions.authenticity.score >= 80) positiveFactors.push('High authenticity score across image and text forensics.');
-    else negativeFactors.push('Authenticity index flagged potential synthetic alteration or AI generation.');
+    if (dimensions.authenticity.active && dimensions.authenticity.score !== null) {
+      if (dimensions.authenticity.score >= 80) positiveFactors.push('High authenticity score across image and text forensics.');
+      else negativeFactors.push('Authenticity index flagged potential synthetic alteration or AI generation.');
+    }
 
-    if (dimensions.security.score >= 80) positiveFactors.push('Strong security and TLS encryption parameters.');
-    else negativeFactors.push('Security index flagged potential unencrypted socket or sensitive PII exposures.');
+    if (dimensions.security.active && dimensions.security.score !== null) {
+      if (dimensions.security.score >= 80) positiveFactors.push('Strong security and TLS encryption parameters.');
+      else negativeFactors.push('Security index flagged potential unencrypted socket or sensitive PII exposures.');
+    }
 
-    if (dimensions.metadata.score >= 75) positiveFactors.push('Rich metadata provenance and header tags verified.');
-    else negativeFactors.push('Metadata provenance lacks complete camera hardware or producer details.');
+    if (dimensions.metadata.active && dimensions.metadata.score !== null) {
+      if (dimensions.metadata.score >= 75) positiveFactors.push('Rich metadata provenance and header tags verified.');
+      else negativeFactors.push('Metadata provenance lacks complete camera hardware or producer details.');
+    }
 
-    if (dimensions.reputation.score >= 80) positiveFactors.push('Domain and text reputation benchmarks clean.');
-    else negativeFactors.push('Source reputation indicates potential domain blacklist or clickbait patterns.');
+    if (dimensions.reputation.active && dimensions.reputation.score !== null) {
+      if (dimensions.reputation.score >= 80) positiveFactors.push('Domain and text reputation benchmarks clean.');
+      else negativeFactors.push('Source reputation indicates potential domain blacklist or clickbait patterns.');
+    }
 
-    evidence.push(`Evaluated ${providedScores.length} of 4 input modalities.`);
+    evidence.push(`Evaluated ${analyzedModalities.length} active modality/modalities (${analyzedModalities.join(', ')}).`);
+    if (missingModalities.length > 0) {
+      evidence.push(`Unanalyzed modalities: ${missingModalities.join(', ')} (weights dynamically renormalized; zero ghost scores assigned).`);
+    }
     evidence.push(`Variance-adjusted statistical confidence: ${(confidenceScore * 100).toFixed(0)}%.`);
     evidence.push(`Calibrated ML Model Version: ${mlPrediction.modelVersion}.`);
 
@@ -311,6 +335,8 @@ class TrustScoreService {
 
     return {
       analysisId: analysisRecord ? analysisRecord._id : null,
+      analyzedModalities,
+      missingModalities,
       overallTrustScore,
       confidenceScore,
       riskCategory,
@@ -319,9 +345,9 @@ class TrustScoreService {
       negativeFactors,
       evidence,
       dataAvailability: {
-        providedChannels: providedScores.length,
+        providedChannels: analyzedModalities.length,
         totalChannels: 4,
-        availabilityRatio: providedScores.length / 4,
+        availabilityRatio: analyzedModalities.length / 4,
       },
       weights: this.WEIGHTS,
       breakdown,

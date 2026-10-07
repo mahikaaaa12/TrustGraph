@@ -372,6 +372,7 @@ class DocumentService {
       riskAssessment,
       findings,
       trustIndicators: indicators,
+      trustScore: indicators.trustScore,
       extractedSnippet: extractedText.substring(0, 300) + (extractedText.length > 300 ? '...' : ''),
     };
   }

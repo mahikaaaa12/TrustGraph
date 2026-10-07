@@ -56,6 +56,145 @@ class CreatorService {
   }
 
   /**
+   * Safely downloads an image from a URL with full SSRF protection, size and type limits.
+   */
+  static async fetchImageSafely(targetUrl, userId, reqHost = '') {
+    const SsrfValidator = require('../utils/ssrfValidator');
+    const FileService = require('./file.service');
+    const http = require('http');
+    const https = require('https');
+    const { URL } = require('url');
+    const path = require('path');
+    const fs = require('fs');
+
+    const ssrfCheck = await SsrfValidator.validateUrl(targetUrl);
+    if (!ssrfCheck.isSafe) {
+      throw new Error(`SSRF Security Violation: ${ssrfCheck.error || 'Blocked internal/private address'}`);
+    }
+
+    return new Promise((resolve, reject) => {
+      let redirectsCount = 0;
+      const MAX_REDIRECTS = 3;
+      const MAX_BYTES = 15 * 1024 * 1024; // 15MB limit
+      const TIMEOUT_MS = 6000;
+
+      const executeGet = async (urlStr) => {
+        let parsedUrl;
+        try {
+          parsedUrl = new URL(urlStr);
+        } catch (e) {
+          return reject(new Error('Invalid URL format for image download.'));
+        }
+
+        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+          return reject(new Error(`Disallowed protocol "${parsedUrl.protocol}" for image download.`));
+        }
+
+        const client = parsedUrl.protocol === 'https:' ? https : http;
+        const options = {
+          protocol: parsedUrl.protocol,
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+          path: `${parsedUrl.pathname}${parsedUrl.search}`,
+          headers: {
+            'User-Agent': 'TrustGraph-Security-Scanner/1.0',
+            Accept: 'image/jpeg,image/png,image/webp,image/gif,image/*,*/*',
+          },
+          timeout: TIMEOUT_MS,
+        };
+
+        const req = client.get(options, async (res) => {
+          if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+            redirectsCount++;
+            if (redirectsCount > MAX_REDIRECTS) {
+              res.resume();
+              return reject(new Error('Too many redirects while fetching image.'));
+            }
+            const redirectUrl = new URL(res.headers.location, urlStr).toString();
+            const redirectCheck = await SsrfValidator.validateUrl(redirectUrl);
+            if (!redirectCheck.isSafe) {
+              res.resume();
+              return reject(new Error(`SSRF Security Violation on redirect: ${redirectCheck.error}`));
+            }
+            res.resume();
+            return executeGet(redirectUrl);
+          }
+
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            res.resume();
+            return reject(new Error(`Failed to fetch image: HTTP status ${res.statusCode}`));
+          }
+
+          const contentType = (res.headers['content-type'] || '').toLowerCase();
+          if (!contentType.startsWith('image/') && !contentType.includes('octet-stream')) {
+            res.resume();
+            return reject(new Error(`Invalid content-type "${contentType}". Expected an image format.`));
+          }
+
+          const chunks = [];
+          let totalBytes = 0;
+
+          res.on('data', (chunk) => {
+            totalBytes += chunk.length;
+            if (totalBytes > MAX_BYTES) {
+              req.destroy();
+              return reject(new Error('Image size exceeded maximum allowed limit (15MB).'));
+            }
+            chunks.push(chunk);
+          });
+
+          res.on('end', async () => {
+            const buffer = Buffer.concat(chunks);
+            if (buffer.length === 0) {
+              return reject(new Error('Downloaded image buffer is empty.'));
+            }
+
+            const uploadsDir = path.resolve(__dirname, '../../uploads');
+            if (!fs.existsSync(uploadsDir)) {
+              fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+            const ext = contentType.includes('png') ? '.png' : contentType.includes('webp') ? '.webp' : '.jpg';
+            const filename = `url_dl_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${ext}`;
+            const tempFilePath = path.join(uploadsDir, filename);
+
+            try {
+              fs.writeFileSync(tempFilePath, buffer);
+              const processed = await FileService.processUploadedFile(
+                {
+                  path: tempFilePath,
+                  filename,
+                  originalname: path.basename(parsedUrl.pathname) || `downloaded_image${ext}`,
+                  mimetype: contentType.startsWith('image/') ? contentType : 'image/jpeg',
+                  size: buffer.length,
+                },
+                userId,
+                reqHost
+              );
+              resolve(processed.fileRecord);
+            } catch (err) {
+              if (fs.existsSync(tempFilePath)) {
+                try { fs.unlinkSync(tempFilePath); } catch (uErr) {}
+              }
+              reject(err);
+            }
+          });
+        });
+
+        req.on('timeout', () => {
+          req.destroy();
+          reject(new Error('Image download timed out after 6000ms.'));
+        });
+
+        req.on('error', (err) => {
+          reject(new Error(`Network error downloading image: ${err.message}`));
+        });
+      };
+
+      executeGet(targetUrl);
+    });
+  }
+
+  /**
    * Main Content Verification Pipeline
    */
   static async analyzeCreatorPackage(payload = {}, userId, host = '') {
@@ -108,22 +247,94 @@ class CreatorService {
     const recommendations = [];
 
     // 2. Image Forensics Execution (via ImageService)
-    if (imageFileId) {
-      try {
-        imageAnalysis = await ImageService.analyzeImage(imageFileId, userId, host);
-        imageScore = imageAnalysis.trustScore || 85;
+    let effectiveImageFileId = imageFileId;
+    let imageFetchError = null;
 
-        if (imageAnalysis.manipulation?.detected) {
+    if (!effectiveImageFileId && effectiveImageUrl) {
+      try {
+        const dlRecord = await CreatorService.fetchImageSafely(effectiveImageUrl, userId, host);
+        if (dlRecord && dlRecord._id) {
+          effectiveImageFileId = dlRecord._id;
+        }
+      } catch (fErr) {
+        imageFetchError = fErr.message;
+        imageAnalysis = {
+          status: 'IMAGE_ANALYSIS_UNAVAILABLE',
+          error: imageFetchError,
+          classification: 'INCONCLUSIVE',
+        };
+        imageScore = null;
+        riskFindings.push({
+          severity: 'medium',
+          category: 'IMAGE_FORENSICS',
+          summary: 'External image could not be safely downloaded for forensic analysis.',
+          detail: imageFetchError,
+        });
+      }
+    }
+
+    if (effectiveImageFileId) {
+      try {
+        imageAnalysis = await ImageService.analyzeImage(effectiveImageFileId, userId, host);
+        imageScore = imageAnalysis.overallTrustScore !== undefined
+          ? imageAnalysis.overallTrustScore
+          : (imageAnalysis.trustScore !== undefined ? imageAnalysis.trustScore : null);
+
+        const manipulation = imageAnalysis.manipulationAssessment || imageAnalysis.manipulation || {};
+        const provenance = imageAnalysis.provenanceAssessment || imageAnalysis.provenance || {};
+        const aiAssessment = imageAnalysis.aiGenerationAssessment || imageAnalysis.aiAssessment || {};
+        const aiModel = imageAnalysis.aiModelDetector || {};
+
+        const isAiDetected = aiAssessment.detected ||
+          aiAssessment.classification === 'LIKELY_AI_GENERATED' ||
+          (aiAssessment.likelihood !== undefined && aiAssessment.likelihood !== null && aiAssessment.likelihood >= 0.65) ||
+          (aiModel.aiGeneratedProbability !== undefined && aiModel.aiGeneratedProbability !== null && aiModel.aiGeneratedProbability >= 0.65);
+
+        const isAiSuspicious = !isAiDetected && (
+          aiAssessment.classification === 'SUSPICIOUS' ||
+          aiModel.classification === 'SUSPICIOUS' ||
+          (aiAssessment.likelihood !== undefined && aiAssessment.likelihood !== null && aiAssessment.likelihood >= 0.40) ||
+          (aiModel.aiGeneratedProbability !== undefined && aiModel.aiGeneratedProbability !== null && aiModel.aiGeneratedProbability >= 0.45)
+        );
+
+        if (isAiDetected) {
+          const probPercent = Math.round(Math.max(
+            (aiAssessment.likelihood || 0) * 100,
+            (aiModel.aiGeneratedProbability || 0) * 100
+          ));
+          riskFindings.push({
+            severity: 'high',
+            category: 'AI_CONTENT',
+            summary: 'High AI-generated visual content signals detected in photo.',
+            detail: aiAssessment.signals?.[0]?.description ||
+              `Image analysis detected synthetic generation signatures (${probPercent}% AI probability) via neural classifier and forensic provenance analysis.`,
+          });
+          recommendations.push('Disclose AI-generated imagery or replace with authentic camera photography to maintain follower trust.');
+        } else if (isAiSuspicious) {
+          const probPercent = Math.round(Math.max(
+            (aiAssessment.likelihood || 0) * 100,
+            (aiModel.aiGeneratedProbability || 0) * 100
+          ));
+          riskFindings.push({
+            severity: 'medium',
+            category: 'AI_CONTENT',
+            summary: 'Potential synthetic or AI-assisted generation signals detected in photo.',
+            detail: `Image analysis flagged suspicious synthetic indicators (${probPercent}% AI probability).`,
+          });
+          recommendations.push('Review photo origin and provide verifiable camera EXIF metadata if claiming authentic photography.');
+        }
+
+        if (manipulation.detected) {
           riskFindings.push({
             severity: 'medium',
             category: 'IMAGE_FORENSICS',
-            summary: 'Digital manipulation signals detected in uploaded photo.',
-            detail: `Error Level Analysis (ELA) detected non-uniform compression levels (score: ${imageAnalysis.manipulation.score}/100).`,
+            summary: 'Digital manipulation signals detected in photo.',
+            detail: `Error Level Analysis (ELA) or editing tools detected non-uniform compression levels (score: ${Math.round((manipulation.likelihood || 0) * 100)}/100).`,
           });
           recommendations.push('Verify photo origin to ensure raw camera image has not been unauthorizedly edited.');
         }
 
-        if (!imageAnalysis.provenance?.status || imageAnalysis.provenance.status === 'UNVERIFIED') {
+        if (!provenance.status || provenance.status === 'UNVERIFIED') {
           riskFindings.push({
             severity: 'low',
             category: 'IMAGE_FORENSICS',
@@ -132,16 +343,19 @@ class CreatorService {
           });
         }
       } catch (err) {
-        imageScore = 70;
+        imageScore = null;
+        imageAnalysis = {
+          status: 'FAILED',
+          error: err.message,
+          classification: 'INCONCLUSIVE',
+        };
+        riskFindings.push({
+          severity: 'low',
+          category: 'IMAGE_FORENSICS',
+          summary: 'Image forensic scan failed to execute.',
+          detail: err.message,
+        });
       }
-    } else if (effectiveImageUrl) {
-      imageScore = 80;
-      imageAnalysis = {
-        status: 'completed',
-        provenance: { status: 'LIMITED', confidence: 0.7, signals: ['Extracted from web link preview'] },
-        aiDetection: { likelihood: 0.15, classification: 'HUMAN' },
-        manipulation: { score: 10, detected: false, signals: ['Standard web compression'] },
-      };
     }
 
     // 3. Caption / Text Analysis Execution (via TextService)
@@ -239,11 +453,78 @@ class CreatorService {
     // 5. Document Security Execution (via DocumentService)
     if (documentFileId) {
       try {
-        documentAnalysis = await DocumentService.evaluateDocumentSecurity(documentFileId, userId);
-        documentScore = documentAnalysis.trustScore || 85;
+        documentAnalysis = await DocumentService.analyzeDocument(documentFileId, userId);
+        documentScore = documentAnalysis.trustScore ?? documentAnalysis.trustIndicators?.trustScore ?? null;
       } catch (err) {
-        documentScore = 75;
+        documentAnalysis = {
+          status: 'FAILED',
+          error: err.message,
+          classification: 'INCONCLUSIVE',
+        };
+        documentScore = null;
+        riskFindings.push({
+          severity: 'low',
+          category: 'DOCUMENT_SECURITY',
+          summary: 'Document security scan encountered an execution error.',
+          detail: err.message,
+        });
       }
+    }
+
+    // Extract Image and Text AI probabilities
+    const imgAiAssess = imageAnalysis?.aiGenerationAssessment || imageAnalysis?.aiAssessment || {};
+    const imgAiModel = imageAnalysis?.aiModelDetector || {};
+    const imgProvenance = imageAnalysis?.provenanceAssessment || imageAnalysis?.provenance || {};
+    const imgManipulation = imageAnalysis?.manipulationAssessment || imageAnalysis?.manipulation || {};
+
+    const imageAiProb = (imageAnalysis && (imgAiAssess.likelihood !== undefined && imgAiAssess.likelihood !== null || imgAiModel.aiGeneratedProbability !== undefined && imgAiModel.aiGeneratedProbability !== null))
+      ? Math.max(
+          imgAiAssess.likelihood || 0,
+          imgAiModel.aiGeneratedProbability || 0
+        )
+      : null;
+
+    const textAiProb = textAnalysis?.aiGeneration?.likelihood ?? null;
+
+    let effectiveAiLikelihood = null;
+    if (imageAiProb !== null && textAiProb !== null) {
+      effectiveAiLikelihood = Math.max(imageAiProb, textAiProb);
+    } else if (imageAiProb !== null) {
+      effectiveAiLikelihood = imageAiProb;
+    } else if (textAiProb !== null) {
+      effectiveAiLikelihood = textAiProb;
+    }
+
+    const hasImageAiDetected = imageAnalysis && (
+      imgAiAssess.detected ||
+      imgAiAssess.classification === 'LIKELY_AI_GENERATED' ||
+      (imageAiProb !== null && imageAiProb >= 0.65) ||
+      imgAiModel.classification === 'LIKELY_AI_GENERATED'
+    );
+
+    const hasTextAiDetected = textAnalysis && (
+      textAnalysis.aiGeneration?.classification === 'VERY_HIGH' ||
+      (textAiProb !== null && textAiProb >= 0.70)
+    );
+
+    const isImageInconclusive = imageAnalysis && (
+      imgAiModel.detectorStatus === 'MODEL_UNAVAILABLE' ||
+      imgAiAssess.classification === 'INCONCLUSIVE' ||
+      imageAnalysis.status === 'IMAGE_ANALYSIS_UNAVAILABLE'
+    ) && !imgAiAssess.detected;
+
+    // AI Generation Signal Label
+    let aiSignalLabel = 'Minimal';
+    if (hasImageAiDetected || hasTextAiDetected || (effectiveAiLikelihood !== null && effectiveAiLikelihood >= 0.65)) {
+      aiSignalLabel = 'High';
+    } else if ((effectiveAiLikelihood !== null && effectiveAiLikelihood >= 0.40) || imgAiAssess.classification === 'SUSPICIOUS' || imgAiModel.classification === 'SUSPICIOUS') {
+      aiSignalLabel = 'Moderate';
+    } else if (isImageInconclusive && !textAnalysis) {
+      aiSignalLabel = 'Inconclusive';
+    } else if (effectiveAiLikelihood !== null && effectiveAiLikelihood >= 0.20) {
+      aiSignalLabel = 'Low';
+    } else {
+      aiSignalLabel = 'Minimal';
     }
 
     // 6. Multi-Modal Unified Trust Score Calculation (via TrustScoreService)
@@ -252,6 +533,7 @@ class CreatorService {
       documentScore,
       websiteScore,
       textScore,
+      aiLikelihood: effectiveAiLikelihood,
     };
 
     if (scoreInputs.imageScore === null && scoreInputs.textScore === null && scoreInputs.websiteScore === null && scoreInputs.documentScore === null) {
@@ -259,17 +541,31 @@ class CreatorService {
     }
 
     const unifiedResult = await TrustScoreService.evaluateTrustScore(scoreInputs, userId);
-    const contentTrustScore = unifiedResult.overallTrustScore !== undefined ? unifiedResult.overallTrustScore : 82;
+    let contentTrustScore = unifiedResult.overallTrustScore !== undefined ? unifiedResult.overallTrustScore : 82;
 
-    const authenticityLabel =
-      contentTrustScore >= 80 ? 'High' : contentTrustScore >= 60 ? 'Medium' : 'Low';
-    
+    // When high AI generation is detected, content trust score drops to reflect synthetic generation risk
+    if (aiSignalLabel === 'High') {
+      contentTrustScore = Math.min(contentTrustScore, 35);
+    }
+
+    // Authenticity Label:
+    // If AI generation is HIGH, Authenticity MUST be LOW!
+    let authenticityLabel = 'Medium';
+    if (aiSignalLabel === 'High' || contentTrustScore < 50 || (unifiedResult.breakdown?.authenticityIndex !== undefined && unifiedResult.breakdown.authenticityIndex < 40)) {
+      authenticityLabel = 'Low';
+    } else if (contentTrustScore >= 80 && (imgProvenance.status === 'VERIFIED' || !imageAnalysis)) {
+      authenticityLabel = 'High';
+    } else if (contentTrustScore >= 70 && aiSignalLabel === 'Minimal' && !imgManipulation.detected) {
+      authenticityLabel = 'High';
+    } else if (aiSignalLabel === 'Moderate' || imgManipulation.detected) {
+      authenticityLabel = 'Medium';
+    } else {
+      authenticityLabel = contentTrustScore >= 60 ? 'Medium' : 'Low';
+    }
+
     const securityLabel =
-      riskFindings.some((r) => r.severity === 'high') ? 'High Risk' : riskFindings.some((r) => r.severity === 'medium') ? 'Medium Risk' : 'Low Risk';
-
-    const aiLikelihood = textAnalysis?.aiGeneration?.likelihood || 0.15;
-    const aiSignalLabel =
-      aiLikelihood >= 0.75 ? 'High' : aiLikelihood >= 0.45 ? 'Moderate' : aiLikelihood >= 0.25 ? 'Low' : 'Minimal';
+      riskFindings.some((r) => r.severity === 'high' && r.category !== 'AI_CONTENT') ? 'High Risk' :
+      riskFindings.some((r) => r.severity === 'medium' && r.category !== 'AI_CONTENT') ? 'Medium Risk' : 'Low Risk';
 
     const linkSafetyLabel = !effectiveWebsiteUrl
       ? 'N/A'
@@ -288,14 +584,25 @@ class CreatorService {
       authenticity: {
         title: 'AUTHENTICITY',
         status: authenticityLabel,
-        summary: authenticityLabel === 'High' ? 'High provenance confidence. Media and text sources match verified creator profiles.' : 'Limited provenance tags detected.',
+        summary: authenticityLabel === 'High'
+          ? 'High provenance confidence. Media and text sources match verified creator profiles.'
+          : authenticityLabel === 'Low'
+          ? 'Low authenticity index. Synthetic AI generation or stripped camera provenance detected.'
+          : 'Limited provenance tags detected.',
         evidence: [
-          imageAnalysis?.provenance?.signals?.[0] || 'Image hardware metadata verified.',
+          ...(imageAnalysis ? (
+            hasImageAiDetected
+              ? ['Image verified as synthetic / AI-generated content.']
+              : imgProvenance.status === 'VERIFIED'
+              ? ['Full camera sensor hardware provenance verified.']
+              : (imgProvenance.signals && imgProvenance.signals.length > 0 ? imgProvenance.signals : ['Image camera provenance unverified.'])
+          ) : ['Independent creator post submission.']),
           resolvedInstagram?.data?.author?.isVerified ? 'Author profile is verified on Instagram.' : 'Independent creator post submission.',
         ],
         technicalEvidence: {
           exifData: imageAnalysis?.exifData || null,
-          provenanceConfidence: imageAnalysis?.provenance?.confidence || 0.85,
+          provenanceConfidence: imgProvenance.confidence || 0.65,
+          authenticityIndex: unifiedResult.breakdown?.authenticityIndex || 50,
         },
       },
       security: {
@@ -314,22 +621,53 @@ class CreatorService {
       aiContentSignals: {
         title: 'AI CONTENT SIGNALS',
         status: aiSignalLabel,
-        summary: aiSignalLabel === 'High' ? 'Strong AI-generated writing signals detected.' : 'Natural human writing style detected.',
+        summary: aiSignalLabel === 'High'
+          ? 'Strong AI-generated content signals detected across media assets.'
+          : aiSignalLabel === 'Moderate'
+          ? 'Moderate or inconclusive synthetic generation patterns observed.'
+          : 'Natural human creation style and sensor characteristics detected.',
         evidence: [
-          `AI text perplexity scan: ${aiSignalLabel} signal (${(aiLikelihood * 100).toFixed(0)}%).`,
-          imageAnalysis?.aiDetection?.classification === 'AI_GENERATED' ? 'Image contains synthetic diffusion patterns.' : 'Image displays natural photo noise variance.',
+          imageAnalysis
+            ? (hasImageAiDetected
+                ? `Image AI detector: High AI probability (${Math.round((imageAiProb || 0.95) * 100)}%) via neural classifier & forensic signatures.`
+                : (imageAiProb !== null && imageAiProb >= 0.40)
+                ? `Image AI detector: Suspicious synthetic patterns (${Math.round(imageAiProb * 100)}%).`
+                : 'Image exhibits natural sensor noise and photo characteristics.')
+            : 'No image uploaded for visual AI analysis.',
+          effectiveCaption
+            ? `AI text perplexity scan: ${textAnalysis?.aiGeneration?.classification || 'Low'} signal (${Math.round((textAiProb || 0.15) * 100)}%).`
+            : 'No caption text provided for linguistic AI analysis.',
         ],
         technicalEvidence: {
-          aiTextLikelihood: aiLikelihood,
-          aiImageClassification: imageAnalysis?.aiDetection?.classification || 'HUMAN',
+          aiTextLikelihood: textAiProb || 0.15,
+          aiImageLikelihood: imageAiProb || 0.0,
+          aiImageClassification: imgAiAssess.classification || imgAiModel.classification || 'HUMAN',
+          aiModelVersion: imgAiModel.modelVersion || 'none',
         },
       },
       imageForensics: {
         title: 'IMAGE FORENSICS',
-        status: imageAnalysis ? (imageAnalysis.manipulation?.detected ? 'Edited' : 'Original') : 'N/A',
-        summary: imageAnalysis ? `Image ELA score: ${imageAnalysis.manipulation?.score || 10}/100.` : 'No image uploaded in package.',
-        evidence: imageAnalysis ? imageAnalysis.manipulation?.signals || ['Compression artifact analysis complete.'] : ['N/A'],
-        technicalEvidence: imageAnalysis ? { elaScore: imageAnalysis.manipulation?.score, software: imageAnalysis.exifData?.software } : null,
+        status: imageAnalysis
+          ? (imgManipulation.detected ? 'Edited' : hasImageAiDetected ? 'AI Generated' : 'Original')
+          : 'N/A',
+        summary: imageAnalysis
+          ? `Image analysis complete. ELA compression score: ${Math.round(imageAnalysis.errorLevelAnalysis?.averageErrorLevel || 10)}/100.`
+          : 'No image uploaded in package.',
+        evidence: imageAnalysis
+          ? [
+              ...(hasImageAiDetected ? ['Synthetic AI image generation detected.'] : []),
+              ...(imgManipulation.signals?.map((s) => s.description || s) || ['Compression artifact analysis complete.']),
+              ...(imgProvenance.signals || []),
+            ]
+          : ['N/A'],
+        technicalEvidence: imageAnalysis
+          ? {
+              elaScore: imageAnalysis.errorLevelAnalysis?.averageErrorLevel,
+              software: imageAnalysis.exifData?.software,
+              aiProbability: imageAiProb,
+              provenanceStatus: imgProvenance.status,
+            }
+          : null,
       },
       textAnalysis: {
         title: 'TEXT ANALYSIS',
@@ -677,8 +1015,9 @@ class CreatorService {
     if (contractFileId) {
       try {
         const DocumentService = require('./document.service');
-        const contractEval = await DocumentService.evaluateDocumentSecurity(contractFileId, userId);
-        if (contractEval.trustScore < 60) {
+        const contractEval = await DocumentService.analyzeDocument(contractFileId, userId);
+        const contractScore = contractEval.trustScore ?? contractEval.trustIndicators?.trustScore ?? 85;
+        if (contractScore < 60) {
           const why = 'Attached sponsorship contract document contains sensitive PII leaks or security concerns.';
           redFlags.push('contract document security concerns');
           creatorWhySuspicious.push(why);
@@ -908,11 +1247,16 @@ class CreatorService {
           }
         } else if (itemType === 'Document') {
           if (item.documentFileId) {
-            const docRes = await DocumentService.evaluateDocumentSecurity(item.documentFileId, userId);
-            trustScore = docRes.trustScore || 85;
-            if (docRes.piiLeaks?.detected) {
-              security = 'Suspicious';
-              findings.push('Document contains unencrypted sensitive PII');
+            try {
+              const docRes = await DocumentService.analyzeDocument(item.documentFileId, userId);
+              trustScore = docRes.trustScore ?? docRes.trustIndicators?.trustScore ?? 85;
+              if (docRes.sensitiveInfo?.hasSensitiveInfo) {
+                security = 'Suspicious';
+                findings.push('Document contains unencrypted sensitive PII');
+              }
+            } catch (err) {
+              trustScore = null;
+              findings.push(`Document analysis failed: ${err.message}`);
             }
           }
         }

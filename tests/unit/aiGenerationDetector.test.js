@@ -32,17 +32,18 @@ describe('AiGenerationDetector Unit Tests', () => {
       expect(result.signals.some((s) => s.type === 'explicit_ai_disclosure')).toBe(false);
     });
 
-    it('should detect synthetic content declarations', () => {
+    it('should classify generic synthetic/demonstration phrases as human with INFO signal', () => {
       const text = `
         Quarterly Operations Review.
-        This report uses a synthetic dataset and describes a fictional organization for demonstration.
+        This report uses a synthetic dataset and describes a fictional organization for demonstration purposes only.
       `;
 
       const result = AiGenerationDetector.detectAiGeneration(text);
 
-      expect(result.detected).toBe(true);
-      expect(result.likelihood).toBeGreaterThanOrEqual(0.75);
-      expect(result.signals.some((s) => s.type === 'synthetic_content')).toBe(true);
+      expect(result.detected).toBe(false);
+      expect(result.classification).toBe('LOW');
+      expect(result.likelihood).toBeLessThan(0.20);
+      expect(result.signals.some((s) => s.type === 'GENERIC_SYNTHETIC_LANGUAGE')).toBe(true);
     });
 
     it('should handle empty or minimal text gracefully', () => {
